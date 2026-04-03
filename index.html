@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>업보의 메아리 | Echo of Karma</title>
+  <meta name="description" content="카드와 주사위를 이용한 생존 보드게임 - 업보의 메아리">
+  <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+  <!-- 배경음악 -->
+  <audio id="bgm" src="background_expectations.mp3" loop></audio>
+  <!-- 효과음 -->
+  <audio id="sfx-shuffle" src="shuffle.m4a"></audio>
+  <audio id="sfx-card-move" src="card_dis_1.m4a"></audio>
+  <audio id="sfx-dice" src="dice.mp3"></audio>
+  <audio id="sfx-click" src="click.m4a"></audio>
+
+  <!-- ========== 타이틀 화면 ========== -->
+  <div id="title-screen" class="screen active">
+    <div class="bg-particles"></div>
+    <div class="title-content">
+      <div class="title-logo">업보의 메아리</div>
+      <div class="title-sub">Echo of Karma</div>
+      <div class="karma-divider"></div>
+      <p style="font-size:0.82rem;color:rgba(255,255,255,0.35);margin-top:4px;">20턴을 살아남아라</p>
+      <div class="title-buttons">
+        <button id="btn-start" class="btn btn-primary">게임 시작</button>
+        <button id="btn-help-title" class="btn btn-secondary">도움말</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========== 게임 화면 ========== -->
+  <div id="game-screen" class="screen new-layout"
+    style="background-image: url('board-background.jpg'); background-size: cover; background-position: center;">
+
+    <div id="game-main">
+
+      <!-- Top Row: Stats & Menu -->
+      <div class="layout-row row-top">
+        <div class="top-statbox">Turn <span id="stat-turn">1/20</span></div>
+        <div class="karma-tracker-wrap">
+          <span class="karma-label">Karma <span id="stat-karma-val"
+              style="color:white; font-size:0.75rem; margin-left:4px;">0</span></span>
+          <div class="karma-tracker" id="karma-tracker"></div>
+        </div>
+        <button id="menu-btn" class="top-btn" style="min-width: 50px;">설정</button>
+      </div>
+
+      <!-- Opponent Decks -->
+      <div class="layout-row row-opp-decks">
+        <div class="deck-place">
+          <div class="deck-mini enemy-deck" id="deck-enemy">
+            <span class="deck-count">0</span>
+          </div>
+        </div>
+        <div class="deck-place">
+          <div class="deck-mini dead-enemy-deck" id="deck-enemy-dead">
+            <span class="deck-count">0</span>
+          </div>
+        </div>
+        <div class="deck-place echo-reveal" id="echo-reveal-1"></div>
+        <div class="deck-place echo-reveal" id="echo-reveal-2"></div>
+        <div class="deck-place">
+          <div class="deck-mini echo-deck" id="deck-echo">
+            <span class="deck-count">0</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Center Field -->
+      <div class="layout-row row-center">
+        <div id="field-card-wrapper" class="center-slot">
+          <!-- 상대카드 (공개) -->
+        </div>
+      </div>
+
+      <!-- Dice Area -->
+      <div class="layout-row row-dice" id="dice-area"></div>
+
+      <!-- Action Buttons -->
+      <div class="layout-row row-actions">
+        <button id="btn-kill" class="action-btn kill">Kill</button>
+        <button id="btn-talk" class="action-btn talk">Talk</button>
+        <button id="btn-skip" class="action-btn skip">Skip</button>
+
+        <div style="position:relative; display:flex; flex-direction:column; align-items:center;">
+          <div style="position:absolute; bottom:100%; margin-bottom:8px; left:50%; transform:translateX(-50%); display:flex; gap:5px; white-space:nowrap; z-index:10;">
+            <button id="btn-next-phase" class="btn btn-primary btn-sm" style="display:none; box-shadow: 0 4px 12px rgba(0,0,0,0.8);">휴식 →</button>
+            <button id="btn-hand-cleanup" class="btn btn-primary btn-sm" style="display:none; box-shadow: 0 4px 12px rgba(0,0,0,0.8);">손패 정리 시작 →</button>
+          </div>
+          <button id="btn-token" class="action-btn token">Token <span id="stat-token">0</span></button>
+        </div>
+      </div>
+
+      <!-- Action Decks -->
+      <div class="layout-row row-action-decks">
+        <div class="deck-place used-card" id="used-card-1"></div>
+        <div class="deck-place used-card" id="used-card-2"></div>
+        <div class="deck-place used-card" id="used-card-3"></div>
+        <div class="deck-place">
+          <div class="deck-mini action-deck" id="deck-action">
+            <span class="deck-count">0</span>
+          </div>
+        </div>
+        <div class="deck-place">
+          <div class="deck-mini discard-pile" id="deck-discard">
+            <span class="deck-count">0</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Gauges -->
+      <div class="layout-row row-gauges">
+        <div class="gauge-container hp-gauge">
+          <div class="gauge-label">HP <span id="stat-hp">20</span></div>
+          <div class="gauge-track">
+            <div class="gauge-fill" id="hp-bar" style="width: 100%;"></div>
+          </div>
+        </div>
+        <div class="gauge-container mp-gauge">
+          <div class="gauge-label">MP <span id="stat-mp">8</span></div>
+          <div class="gauge-track">
+            <div class="gauge-fill" id="mp-bar" style="width: 100%;"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Hand Zone -->
+      <div class="layout-row row-hand" id="hand-zone">
+        <!-- 핸드 카드 -->
+      </div>
+
+      <!-- 숨겨진 부가 요소 -->
+      <div id="log-zone" style="display:none;"></div>
+      <div id="karma-bar-wrap" style="display:none;">
+        <div id="karma-bar-fill"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========== 도움말 화면 ========== -->
+  <div id="help-screen" class="screen">
+    <div class="help-content">
+      <h2>📖 도움말</h2>
+
+      <h3>🎯 게임 목표</h3>
+      <p><span class="highlight">20턴</span>을 생존하면 승리합니다. HP가 0이 되면 즉시 패배합니다.</p>
+
+      <h3>📊 기본 능력치</h3>
+      <ul>
+        <li><span class="highlight">HP</span>: 시작 20, 최대 20</li>
+        <li><span class="highlight">MP</span>: 시작 8, 최대 8 (0 미만 불가)</li>
+        <li><span class="highlight">Karma(업보)</span>: 시작 0, 최저 0</li>
+        <li><span class="highlight">Talk Token(대화 토큰)</span>: 시작 0, 최대 4. 6/11/16턴에 +1개씩 획득</li>
+      </ul>
+
+      <h3>⚙️ 턴 진행</h3>
+      <ol style="padding-left:18px;line-height:2.2;font-size:0.86rem;color:var(--color-text-muted);">
+        <li>손패 정리: 최대 3장 버림 → 4장까지 보충</li>
+        <li>카드 사용: MP를 소비해 행동 카드 사용</li>
+        <li>선택 행동: <b>살생</b> 또는 <b>대화</b> 또는 <b>시도 안 함</b> 중 택1</li>
+        <li>휴식: 손패 보충, MP+1 회복, Karma 패널티 적용 후 턴+1</li>
+      </ol>
+
+      <h3>⚔ 살생 (기본 비용 MP 1)</h3>
+      <ul>
+        <li>주사위 3개를 굴려 <span class="highlight">1개라도 5 이상이면 성공</span></li>
+        <li>성공: 상대 → 메아리 덱, Karma +1, 메아리 1장 공개</li>
+        <li>실패: HP - 상대A 피해, 상대 덱으로 이동 후 <b>메아리 단계</b> 발생</li>
+        <li>Karma 7이상이면 살생 비용 +1</li>
+      </ul>
+
+      <h3>🗣 대화 (기본 비용 MP 2)</h3>
+      <ul>
+        <li>주사위 1개(+ 토큰 소모 시 +주사위 1개)를 굴려 합이 <span class="highlight">(상대 R + 현재 Karma) 이상</span>이면 성공</li>
+        <li>성공: 상대 완전 제거, Karma -1, 대화 토큰 +1(대화 토큰은 토큰을 사용하지 않은 경우에만 보충)</li>
+        <li>실패: HP - 상대A 피해, 상대 덱으로 이동. Karma 3이상이면 메아리 1장 공개</li>
+      </ul>
+
+      <h3>⏭ 시도 안 함</h3>
+      <ul>
+        <li>HP - 상대A 피해, 상대 덱으로 이동, 메아리 단계 발생</li>
+      </ul>
+
+      <h3>⚡ 메아리 단계</h3>
+      <ul>
+        <li>현재 Karma 만큼 메아리 덱에서 공개 (최대 5장)</li>
+        <li>공개된 카드의 Echo 효과 즉시 적용 후 덱 맨 아래로</li>
+      </ul>
+
+      <h3>📈 Karma 패널티</h3>
+      <ul>
+        <li>Karma 0~3: 없음</li>
+        <li>Karma 4~8: 매 턴 종료 HP -1</li>
+        <li>Karma 7이상: 살생 비용 +1</li>
+        <li>Karma 9이상: 매 턴 종료 HP -2</li>
+      </ul>
+
+      <h3>🃏 카드 사용 팁</h3>
+      <ul>
+        <li><span class="highlight">길게 누르기</span>: 카드를 크게 확대하여 볼 수 있습니다</li>
+        <li>카드는 손패 정리 후 카드 사용 단계에 사용 가능합니다</li>
+        <li>경청과 중재는 같은 턴에 함께 사용할 수 없습니다</li>
+        <li>침묵 카드는 메아리 단계에서만 사용 가능합니다</li>
+      </ul>
+
+      <!-- 여기에 돌아가기 정보 저장용 hidden -->
+      <span id="help-back-to" data-from="title-screen" style="display:none"></span>
+      <button id="help-close-btn" class="btn btn-primary help-close-btn">← 돌아가기</button>
+    </div>
+  </div>
+
+  <!-- ========== 결과 화면 ========== -->
+  <div id="result-screen" class="screen">
+    <div class="result-content">
+      <div class="result-title" id="result-title">생존!</div>
+      <div class="result-subtitle" id="result-subtitle">20턴을 버텨냈습니다.</div>
+      <div class="result-stats" id="result-stats-text"></div>
+      <div class="result-buttons">
+        <button id="result-new-btn" class="btn btn-primary">다시 시작</button>
+        <button id="result-main-btn" class="btn btn-secondary">메인으로</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========== 인게임 메뉴 ========== -->
+  <div id="ingame-menu">
+    <div class="ingame-menu-box">
+      <div class="ingame-menu-title">⚙ 메뉴</div>
+
+      <div class="volume-setting">
+        <div class="volume-row">
+          <span>배경음</span>
+          <input type="range" id="bgm-volume" min="0" max="1" step="0.1" value="1">
+        </div>
+        <div class="volume-row">
+          <span>효과음</span>
+          <input type="range" id="sfx-volume" min="0" max="1" step="0.1" value="1">
+        </div>
+      </div>
+
+      <button id="ingame-new-btn" class="btn btn-primary">새 게임</button>
+      <button id="ingame-help-btn" class="btn btn-secondary">도움말</button>
+      <button id="ingame-main-btn" class="btn btn-secondary">메인으로</button>
+      <button id="ingame-back-btn" class="btn btn-secondary"
+        style="margin-top:6px;font-size:0.82rem;opacity:0.6;">계속하기</button>
+    </div>
+  </div>
+
+  <!-- ========== 카드 줌 모달 ========== -->
+  <div id="card-zoom-modal">
+    <div class="card-zoom-content">
+      <div class="card-zoom-inner" id="zoom-card-area"></div>
+      <div class="card-zoom-actions">
+        <button id="zoom-play-btn" class="btn btn-primary btn-sm">사용</button>
+        <button id="zoom-cancel-btn" class="btn btn-secondary btn-sm">닫기</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========== 토큰 모달 ========== -->
+  <div id="token-modal">
+    <div class="token-modal-box">
+      <div class="token-modal-title">🗣 대화 토큰 사용</div>
+      <p style="font-size:0.82rem;color:var(--color-text-muted);text-align:center;">
+        토큰 1개당 대화 주사위 +1d6<br>보유 토큰: <span id="token-max" style="color:var(--color-gold);font-weight:700"></span>개
+      </p>
+      <div class="token-count-row">
+        <button class="token-btn" id="token-minus">−</button>
+        <div class="token-display" id="token-count-display">0</div>
+        <button class="token-btn" id="token-plus">+</button>
+      </div>
+      <button id="token-confirm-btn" class="btn btn-primary">확인 → 주사위 굴리기</button>
+    </div>
+  </div>
+
+  <!-- ========== 빚쟁이 선택 모달 ========== -->
+  <div id="choice-modal">
+    <div class="choice-modal-box">
+      <div class="choice-modal-title">⚡ Echo: 선택</div>
+      <div class="choice-modal-desc" id="choice-modal-desc"></div>
+      <div class="choice-buttons">
+        <button id="choice-hp-btn" class="btn btn-danger">HP −2</button>
+        <button id="choice-mp-btn" class="btn btn-talk">MP −1</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========== 손패 정리 모달 ========== -->
+  <div id="discard-modal">
+    <button id="discard-hide-btn" class="btn btn-secondary btn-sm"
+      style="position: absolute; top: 10px; right: 10px; z-index: 10;">숨기기</button>
+    <div class="discard-modal-title">♻ 손패 정리</div>
+    <div class="discard-modal-desc">버릴 카드를 선택하세요 (0~3장). 이후 4장까지 보충됩니다.</div>
+    <div id="discard-hand-row"></div>
+    <button id="discard-confirm-btn" class="btn btn-primary">버리기 (0장 선택) → 계속</button>
+  </div>
+
+  <!-- ========== 메아리 패널 ========== -->
+  <div id="echo-panel">
+    <div class="echo-panel-title" id="echo-panel-title">⚡ 메아리 공개</div>
+    <div class="echo-cards-row" id="echo-cards-row"></div>
+  </div>
+
+  <!-- ========== 토스트 ========== -->
+  <div id="toast"></div>
+
+  <!-- ========== 액션 결과 모달 ========== -->
+  <div id="action-result-modal" class="screen" style="background:rgba(0,0,0,0.85);z-index:9999;">
+    <div class="result-content action-result-box"
+      style="text-align:center; padding: 20px; background: var(--bg-card); border-radius: var(--radius-card); border: 2px solid var(--color-gold); box-shadow: var(--shadow-card);">
+      <h3 id="action-result-title" style="color:var(--color-gold); font-size: 1.5rem; margin-bottom: 15px;"></h3>
+      <div id="action-result-desc" style="font-size: 1rem; line-height: 1.6; margin-bottom: 20px; color: #fff;"></div>
+      <div style="font-size: 0.85rem; color: var(--color-text-muted);">화면을 터치하여 계속...</div>
+    </div>
+  </div>
+
+  <script src="cards.js"></script>
+  <script src="game.js"></script>
+  <script>
+    // 토큰 모달 열릴 때 최대값 업데이트
+    const origShowTokenModal = showTokenModal;
+    window.showTokenModal = function (cb) {
+      document.getElementById('token-max').textContent = G.talkTokens;
+      tokenCount = 0;
+      document.getElementById('token-count-display').textContent = 0;
+      origShowTokenModal(cb);
+    };
+  </script>
+</body>
+
+</html>

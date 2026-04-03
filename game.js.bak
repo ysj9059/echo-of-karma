@@ -1,0 +1,996 @@
+// =============================
+// 업보의 메아리 - 게임 로직 v2
+// =============================
+
+// ===== 게임 상태 =====
+let G = {};
+
+// ===== 상태 초기화 =====
+function initGame() {
+    const actionDeck = buildActionDeck();
+    const enemyDeck = buildEnemyDeck();
+    const echoCards = enemyDeck.splice(0, 5);
+    // 게임 시작 시 첫 상대는 즉시 공개 (초기 세팅)
+    const fieldCard = enemyDeck.splice(0, 1)[0] || null;
+    const hand = actionDeck.splice(0, 4);
+
+    G = {
+        turn: 1,
+        hp: 20, mp: 8, karma: 0, talkTokens: 0,
+        actionDeck, actionDiscard: [],
+        hand, enemyDeck,
+        fieldCard,
+        echoDeck: echoCards,
+
+        killCostModifier: 0,
+        talkCostModifier: 0,
+        talkDiceBonus: 0,
+        echoCountModifier: 0,
+        usedTalkBoostCard: false,
+        freeTalkThisTurn: false,
+        specialKillNoRoll: false,
+        specialRemoveEnemy: false,
+
+        nextTurnHandPenalty: 0,
+        nextTurnKillCostBonus: 0,
+        nextTurnTalkCostBonus: 0,
+
+        phase: 'hand-cleanup',
+        actionDone: false,
+        gameOver: false,
+        won: false,
+
+        discardSelected: [],
+    };
+
+    q('#log-zone').innerHTML = '';
+    log(`━━ 1턴 시작 ━━`, 'event');
+    if (G.fieldCard) log(`▶ 현재 상대: ${G.fieldCard.name}`, 'event');
+    renderAll();
+    phaseHandCleanup();
+}
+
+// ===== 주사위 =====
+function rollD6() { return Math.floor(Math.random() * 6) + 1; }
+function rollDice(n) { return Array.from({ length: n }, rollD6); }
+
+// ===== 덱 관리 =====
+function drawAction(n) {
+    for (let i = 0; i < n; i++) {
+        if (G.actionDeck.length === 0) {
+            if (G.actionDiscard.length === 0) break;
+            G.actionDeck = shuffle([...G.actionDiscard]);
+            G.actionDiscard = [];
+            log('▶ 행동 버림 더미 셔플 → 새 행동 덱', 'event');
+        }
+        G.hand.push(G.actionDeck.shift());
+    }
+}
+
+function refillHand() {
+    const needed = 4 - G.hand.length;
+    if (needed > 0) drawAction(needed);
+}
+
+// 상대덱에서 새 상대 공개 (애니메이션 포함)
+function revealNewEnemy(onDone) {
+    if (G.fieldCard || G.enemyDeck.length === 0) { if (onDone) onDone(); return; }
+    G.fieldCard = G.enemyDeck.shift();
+    log(`▶ 새 상대 등장: ${G.fieldCard.name}`, 'event');
+    renderDecks();
+    // 상대 카드 등장 애니메이션
+    animateCardFly('deck-enemy', 'field-card-wrapper', () => {
+        renderField();
+        renderDecks();
+        if (onDone) onDone();
+    }, 'enemy');
+}
+
+// ===== 메아리 공개 =====
+function resolveEcho(cards, onDone) {
+    if (cards.length === 0) { if (onDone) onDone(); return; }
+    const panel = q('#echo-panel');
+    const row = q('#echo-cards-row');
+    row.innerHTML = '';
+    panel.classList.add('active');
+    q('#echo-panel-title').textContent = `⚡ 메아리 공개 (${cards.length}장)`;
+
+    let idx = 0;
+    const next = () => {
+        if (idx >= cards.length) {
+            G.echoDeck.push(...cards);
+            panel.classList.remove('active');
+            if (G.hp <= 0) { endGame(false); return; }
+            if (onDone) onDone();
+            return;
+        }
+        const card = cards[idx++];
+        const el = createEnemyCardEl(card, true);
+        row.appendChild(el);
+        log(`메아리: [${card.name}] Echo = ${card.echo}`, 'event');
+        if (card.echoConcept === 'choice') {
+            showChoiceModal(card, next);
+        } else {
+            card.echoEffect(G);
+            if (G.hp <= 0) { endGame(false); return; }
+            renderStats();
+            setTimeout(next, 700);
+        }
+    };
+    next();
+}
+
+function triggerEchoPhase(onDone) {
+    const count = Math.max(0, Math.min(5, G.karma + (G.echoCountModifier || 0)));
+    G.echoCountModifier = 0;
+    if (count === 0) { log('▶ 메아리 없음 (공개 0장)', 'muted'); if (onDone) onDone(); return; }
+    const toReveal = G.echoDeck.splice(0, count);
+    resolveEcho(toReveal, onDone);
+}
+
+// 살생 성공 시 메아리 1장
+function triggerKillEcho(onDone) {
+    if (G.echoDeck.length === 0) { if (onDone) onDone(); return; }
+    const card = G.echoDeck.shift();
+    log(`⚡ 살생 성공 메아리 1장 공개: [${card.name}]`, 'event');
+    if (card.echoConcept === 'choice') {
+        showChoiceModal(card, () => {
+            G.echoDeck.push(card);
+            if (G.hp <= 0) { endGame(false); return; }
+            if (onDone) onDone();
+        });
+    } else {
+        card.echoEffect(G);
+        G.echoDeck.push(card);
+        renderStats();
+        if (G.hp <= 0) { endGame(false); return; }
+        if (onDone) onDone();
+    }
+}
+
+// ===== 턴 구조 =====
+
+// 턴 시작: 대화 토큰 → 새 상대 공개 → 손패 정리
+function startTurn() {
+    // [0] 대화 토큰 성장
+    if ([6, 11, 16].includes(G.turn)) {
+        G.talkTokens = Math.min(4, G.talkTokens + 1);
+        log(`🗣 대화 토큰 +1 (현재 ${G.talkTokens}개)`, 'event');
+    }
+
+    // 다음 턴 수정자 반영
+    G.killCostModifier = G.nextTurnKillCostBonus || 0;
+    G.talkCostModifier = G.nextTurnTalkCostBonus || 0;
+    G.nextTurnKillCostBonus = 0;
+    G.nextTurnTalkCostBonus = 0;
+    G.actionDone = false;
+    G.specialKillNoRoll = false;
+    G.specialRemoveEnemy = false;
+    G.freeTalkThisTurn = false;
+    G.usedTalkBoostCard = false;
+    G.talkDiceBonus = 0;
+    G.echoCountModifier = 0;
+
+    log(`\n━━ ${G.turn}턴 시작 ━━`, 'event');
+
+    // [1] 필드 확인: 상대 없으면 공개 후 손패 정리
+    if (!G.fieldCard) {
+        revealNewEnemy(() => {
+            renderAll();
+            phaseHandCleanup();
+        });
+    } else {
+        renderAll();
+        phaseHandCleanup();
+    }
+}
+
+// 손패 정리 단계
+function phaseHandCleanup() {
+    G.phase = 'hand-cleanup';
+    // 손패 패널티 적용
+    if (G.nextTurnHandPenalty > 0) {
+        const penalty = Math.min(G.nextTurnHandPenalty, Math.max(0, G.hand.length - 2));
+        for (let i = 0; i < penalty; i++) G.actionDiscard.push(G.hand.shift());
+        if (penalty > 0) log(`⚡ 손패 패널티: -${penalty}장`, 'danger');
+        G.nextTurnHandPenalty = 0;
+    }
+    refillHand();
+    renderAll();
+    showDiscardModal();
+}
+
+// 카드 사용 단계
+function phaseCardPlay() {
+    G.phase = 'card-play';
+    closeDiscardModal();
+    renderAll();
+    setActionBtnsState();
+}
+
+// 선택 행동 단계
+function phaseSelectAction() {
+    G.phase = 'select-action';
+    renderAll();
+    setActionBtnsState();
+}
+
+// 휴식 단계 → 손패 보충, MP+1, Karma패널티, 턴+1 → 새 상대 공개 → 다음 턴 시작
+function phaseRest() {
+    G.phase = 'rest';
+    refillHand();
+    G.mp = Math.min(8, G.mp + 1);
+
+    let hpPenalty = 0;
+    if (G.karma >= 9) hpPenalty = 2;
+    else if (G.karma >= 4) hpPenalty = 1;
+    if (hpPenalty > 0) {
+        G.hp -= hpPenalty;
+        log(`☠ 카르마 패널티: HP -${hpPenalty} (Karma ${G.karma})`, 'danger');
+    }
+
+    G.turn++;
+    renderAll();
+
+    if (G.hp <= 0) { endGame(false); return; }
+    if (G.turn > 20) { endGame(true); return; }
+
+    // 휴식 후 새 상대가 없으면 공개 → 그 다음 다음 턴(손패 정리)
+    if (!G.fieldCard) {
+        setTimeout(() => {
+            revealNewEnemy(() => {
+                renderAll();
+                setTimeout(() => startTurn(), 400);
+            });
+        }, 400);
+    } else {
+        setTimeout(() => startTurn(), 500);
+    }
+}
+
+// ===== 카드 사용 =====
+// 카드 클릭 → 줌 확인 모달 → "사용" 버튼으로만 실제 적용
+function onHandCardClick(card) {
+    if (G.phase === 'hand-cleanup') {
+        toggleDiscardSelect(card);
+    } else if (G.phase === 'card-play') {
+        // 확인 단계: 줌 모달 띄우고 "사용" 눌러야 실제 적용
+        showCardZoom(card, true);
+    }
+}
+
+function playCard(card) {
+    if (G.phase !== 'card-play') { showToast('카드 사용 단계가 아닙니다'); return; }
+    if (G.mp < card.cost) { showToast('MP가 부족합니다'); return; }
+
+    if ((card.id === 'action_talk_1' || card.id === 'action_talk_3') && G.usedTalkBoostCard) {
+        showToast('경청과 중재는 같은 턴에 함께 사용할 수 없습니다'); return;
+    }
+    if (card.isReaction) {
+        showToast('침묵은 메아리 단계에서만 사용 가능합니다'); return;
+    }
+
+    q('#card-zoom-modal').classList.remove('active');
+
+    if (card.id === 'action_kill_2') { doPlayCardAnim(card, doConfirmKill); return; }
+    if (card.id === 'action_talk_4') { doPlayCardAnim(card, doConfess); return; }
+
+    doPlayCardAnim(card, null);
+}
+
+// 카드 사용 처리 (손패 → 버림더미 애니메이션)
+function doPlayCardAnim(card, afterCb) {
+    G.mp -= card.cost;
+    G.hand = G.hand.filter(c => c.uid !== card.uid);
+    G.actionDiscard.push(card);
+    log(`🃏 카드 사용: ${card.name} (MP -${card.cost})`, 'info');
+
+    // 손패에서 버림더미로 애니메이션
+    animateCardFly('hand-zone', 'deck-discard', () => {
+        card.effect(G);
+        renderAll();
+        if (afterCb) afterCb();
+    }, 'action', card);
+}
+
+function doConfirmKill() {
+    if (!G.fieldCard) { showToast('현재 상대가 없습니다'); return; }
+    log(`⚔ 확인 사살: ${G.fieldCard.name} → 메아리 덱으로 이동`, 'danger');
+    G.karma = Math.min(99, G.karma + 1);
+    G.actionDone = true;
+    // 필드 → 메아리덱 애니메이션
+    animateCardFly('field-card-wrapper', 'deck-echo', () => {
+        G.echoDeck.push(G.fieldCard);
+        G.fieldCard = null;
+        renderStats();
+        renderField();
+        renderDecks();
+        triggerKillEcho(() => {
+            renderAll();
+            phaseSelectAction();
+        });
+    }, 'enemy');
+}
+
+function doConfess() {
+    if (!G.fieldCard) { showToast('현재 상대가 없습니다'); return; }
+    G.karma = Math.max(0, G.karma - 1);
+    G.hp -= 4;
+    log(`💔 고백: HP-4, Karma-1, ${G.fieldCard.name} 제거`, 'danger');
+    G.fieldCard = null;
+    G.actionDone = true;
+    renderStats();
+    renderField();
+    if (G.hp <= 0) { endGame(false); return; }
+    renderAll();
+    phaseSelectAction();
+}
+
+// ===== 살생 시도 =====
+function tryKill() {
+    if (G.actionDone) { showToast('이미 이번 턴 선택 행동을 완료했습니다'); return; }
+    if (!G.fieldCard) { showToast('현재 상대가 없습니다'); return; }
+
+    let cost = 1;
+    if (G.karma >= 7) cost += 1;
+    cost += (G.killCostModifier || 0);
+    cost = Math.max(0, Math.min(cost, 3));
+
+    if (G.mp < cost) { showToast(`살생 비용 MP ${cost} 부족 (현재 MP ${G.mp})`); return; }
+    G.mp -= cost;
+    G.killCostModifier = 0;
+
+    const dice = rollDice(3);
+    const success = dice.some(d => d >= 5);
+    log(`⚔ 살생 시도 (비용 MP ${cost}): 주사위 [${dice.join(', ')}] → ${success ? '✅ 성공' : '❌ 실패'}`, success ? 'success' : 'danger');
+    showDiceResult('kill', dice, success);
+
+    G.karma = Math.min(99, G.karma + 1);
+    G.actionDone = true;
+
+    if (success) {
+        const enemy = G.fieldCard;
+        log(`✅ ${enemy.name} → 메아리 덱으로`, 'success');
+        // 필드 → 메아리덱 애니메이션
+        animateCardFly('field-card-wrapper', 'deck-echo', () => {
+            G.echoDeck.push(enemy);
+            G.fieldCard = null;
+            renderStats(); renderField(); renderDecks();
+            triggerKillEcho(() => {
+                renderAll();
+                setTimeout(() => phaseSelectAction(), 300);
+            });
+        }, 'enemy');
+    } else {
+        G.hp -= G.fieldCard.a;
+        log(`❌ 살생 실패: HP -${G.fieldCard.a} (${G.fieldCard.name})`, 'danger');
+        const enemy = G.fieldCard;
+        G.fieldCard = null;
+        G.enemyDeck = shuffle([...G.enemyDeck, enemy]);
+        renderStats();
+        if (G.hp <= 0) { endGame(false); return; }
+        triggerEchoPhase(() => {
+            renderAll();
+            setTimeout(() => phaseSelectAction(), 300);
+        });
+    }
+}
+
+// ===== 대화 시도 =====
+function tryTalk() {
+    if (G.actionDone) { showToast('이미 이번 턴 선택 행동을 완료했습니다'); return; }
+    if (!G.fieldCard) { showToast('현재 상대가 없습니다'); return; }
+
+    let cost = 2;
+    cost += (G.talkCostModifier || 0);
+    cost = Math.max(0, cost);
+
+    if (!G.freeTalkThisTurn && G.mp < cost) {
+        showToast(`대화 비용 MP ${cost} 부족 (현재 MP ${G.mp})`); return;
+    }
+    if (!G.freeTalkThisTurn) G.mp -= cost;
+    else G.freeTalkThisTurn = false;
+    G.talkCostModifier = 0;
+
+    showTokenModal((tokensUsed) => {
+        G.talkTokens -= tokensUsed;
+        const diceCount = 1 + (G.talkDiceBonus || 0) + tokensUsed;
+        const dice = rollDice(diceCount);
+        const total = dice.reduce((a, b) => a + b, 0);
+        const threshold = (G.fieldCard ? G.fieldCard.r : 0) + G.karma;
+        const success = total >= threshold;
+        G.talkDiceBonus = 0;
+
+        log(`🗣 대화 (비용 MP ${cost}, ${diceCount}d6): [${dice.join(', ')}] = ${total} vs 목표 ${threshold} → ${success ? '✅ 성공' : '❌ 실패'}`, success ? 'talk' : 'danger');
+        showDiceResult('talk', dice, success, threshold);
+        G.actionDone = true;
+
+        if (success) {
+            log(`✅ 대화 성공: ${G.fieldCard.name} 완전 제거`, 'talk');
+            G.fieldCard = null;
+            G.karma = Math.max(0, G.karma - 1);
+            G.talkTokens = Math.min(4, G.talkTokens + 1);
+            renderStats(); renderField(); renderDecks();
+            setTimeout(() => phaseSelectAction(), 300);
+        } else {
+            G.hp -= G.fieldCard.a;
+            log(`❌ 대화 실패: HP -${G.fieldCard.a} (${G.fieldCard.name})`, 'danger');
+            const enemy = G.fieldCard;
+            G.fieldCard = null;
+            G.enemyDeck = shuffle([...G.enemyDeck, enemy]);
+            renderStats();
+            if (G.hp <= 0) { endGame(false); return; }
+            if (G.karma >= 3 && G.echoDeck.length > 0) {
+                const card = G.echoDeck.shift();
+                log(`⚡ 대화 실패 메아리 1장 공개: [${card.name}]`, 'event');
+                resolveEcho([card], () => {
+                    renderAll();
+                    setTimeout(() => phaseSelectAction(), 300);
+                });
+            } else {
+                renderAll();
+                setTimeout(() => phaseSelectAction(), 300);
+            }
+        }
+    });
+}
+
+// ===== 시도 안 함 =====
+function trySkip() {
+    if (G.actionDone) { showToast('이미 이번 턴 선택 행동을 완료했습니다'); return; }
+    if (!G.fieldCard) {
+        G.actionDone = true;
+        log('▶ 시도 안 함 (상대 없음)', 'muted');
+        phaseSelectAction();
+        return;
+    }
+    G.hp -= G.fieldCard.a;
+    log(`😶 시도 안 함: HP -${G.fieldCard.a} (${G.fieldCard.name})`, 'danger');
+    const enemy = G.fieldCard;
+    G.fieldCard = null;
+    G.enemyDeck = shuffle([...G.enemyDeck, enemy]);
+    G.actionDone = true;
+    renderStats();
+    if (G.hp <= 0) { endGame(false); return; }
+    triggerEchoPhase(() => {
+        renderAll();
+        setTimeout(() => phaseSelectAction(), 300);
+    });
+}
+
+// ===== 선택 완료 후 휴식 =====
+function endActionPhase() {
+    if (!G.actionDone) { showToast('아직 선택 행동(살생/대화/시도 안 함)을 해야 합니다'); return; }
+    phaseRest();
+}
+
+// ===== 게임 종료 =====
+function endGame(won) {
+    G.gameOver = true;
+    G.won = won;
+    showResultScreen(won);
+}
+
+// ============================================================
+// ===== 카드 이동 애니메이션 시스템 =====
+// ============================================================
+/**
+ * fromId: 출발 요소 id (getBoundingClientRect 기준)
+ * toId:   도착 요소 id
+ * onDone: 애니메이션 완료 콜백
+ * type:   'action' | 'enemy'
+ * card:   (선택) 카드 데이터 (보여줄 모양 결정)
+ */
+function animateCardFly(fromId, toId, onDone, type = 'action', card = null) {
+    const fromEl = document.getElementById(fromId) || q(`#${fromId}`);
+    const toEl = document.getElementById(toId) || q(`#${toId}`);
+
+    if (!fromEl || !toEl) { if (onDone) onDone(); return; }
+
+    const fromRect = fromEl.getBoundingClientRect();
+    const toRect = toEl.getBoundingClientRect();
+
+    // 날아다닐 카드 요소 생성
+    const fly = document.createElement('div');
+    fly.className = `card fly-card ${type === 'enemy' ? 'card-enemy tier-weak' : 'card-action effect'}`;
+    fly.style.cssText = `
+    position: fixed;
+    z-index: 9999;
+    pointer-events: none;
+    width: ${type === 'enemy' ? '80px' : '72px'};
+    height: ${type === 'enemy' ? '110px' : '104px'};
+    left: ${fromRect.left + fromRect.width / 2}px;
+    top:  ${fromRect.top + fromRect.height / 2}px;
+    transform: translate(-50%, -50%) scale(1);
+    opacity: 1;
+    transition: left 0.4s cubic-bezier(0.4, 0, 0.2, 1),
+                top  0.4s cubic-bezier(0.4, 0, 0.2, 1),
+                transform 0.4s cubic-bezier(0.4, 0, 0.2, 1),
+                opacity 0.35s ease;
+    overflow: hidden;
+    border-radius: 10px;
+    background: ${type === 'enemy' ? 'linear-gradient(135deg,#2a1a2e,#3a2a4e)' : 'linear-gradient(135deg,#0a1a2e,#1a2a4e)'};
+    border: 1.5px solid rgba(255,255,255,0.2);
+    box-shadow: 0 8px 32px rgba(0,0,0,0.7);
+  `;
+    fly.innerHTML = `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:0.6rem;color:rgba(255,255,255,0.3)">${card ? card.name : '▶'}</div>`;
+    document.body.appendChild(fly);
+
+    // 애니메이션: 출발지 → 도착지
+    requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+            fly.style.left = `${toRect.left + toRect.width / 2}px`;
+            fly.style.top = `${toRect.top + toRect.height / 2}px`;
+            fly.style.transform = 'translate(-50%, -50%) scale(0.6)';
+            fly.style.opacity = '0';
+        });
+    });
+
+    setTimeout(() => {
+        if (fly.parentNode) fly.parentNode.removeChild(fly);
+        if (onDone) onDone();
+    }, 430);
+}
+
+// ============================================================
+// ===== UI 렌더링 =====
+// ============================================================
+const q = sel => document.querySelector(sel);
+const qa = sel => document.querySelectorAll(sel);
+
+function renderAll() {
+    renderStats();
+    renderField();
+    renderHand();
+    renderDecks();
+    renderKarmaBar();
+    setActionBtnsState();
+}
+
+function renderStats() {
+    const sv = (id, v) => { const e = q(id); if (e) e.textContent = v; };
+    sv('#stat-hp', G.hp);
+    sv('#stat-mp', G.mp);
+    sv('#stat-karma', G.karma);
+    sv('#stat-turn', `${G.turn}/20`);
+    sv('#stat-token', G.talkTokens);
+}
+
+function renderKarmaBar() {
+    const fill = q('#karma-bar-fill');
+    if (!fill) return;
+    const pct = Math.min(100, (G.karma / 12) * 100);
+    fill.style.width = pct + '%';
+    fill.style.background =
+        G.karma <= 3 ? '#38b000' :
+            G.karma <= 6 ? '#f4a261' :
+                G.karma <= 8 ? '#e63946' : '#9d0208';
+}
+
+function renderField() {
+    const wrapper = q('#field-card-wrapper');
+    if (!wrapper) return;
+    wrapper.innerHTML = '';
+    if (G.fieldCard) {
+        wrapper.appendChild(createEnemyCardEl(G.fieldCard, false, true));
+    } else {
+        const empty = document.createElement('div');
+        empty.className = 'deck-mini enemy-deck';
+        empty.style.cssText = 'width:120px;height:170px;font-size:0.75rem;color:rgba(255,255,255,0.25)';
+        empty.innerHTML = '<span>상대 없음</span>';
+        wrapper.appendChild(empty);
+    }
+}
+
+function renderHand() {
+    const zone = q('#hand-zone');
+    if (!zone) return;
+    zone.innerHTML = '';
+    G.hand.forEach(card => zone.appendChild(createActionCardEl(card)));
+}
+
+function renderDecks() {
+    const sd = (id, cnt) => {
+        const el = q(id);
+        if (!el) return;
+        el.querySelector('.deck-count').textContent = cnt;
+    };
+    sd('#deck-action', G.actionDeck.length);
+    sd('#deck-discard', G.actionDiscard.length);
+    sd('#deck-enemy', G.enemyDeck.length);
+    sd('#deck-echo', G.echoDeck.length);
+}
+
+// ===== 카드 요소 생성 =====
+function createActionCardEl(card, forZoom = false) {
+    const el = document.createElement('div');
+    el.className = `card card-action ${card.subtype}`;
+    el.dataset.uid = card.uid;
+    el.innerHTML = `
+    <div class="card-inner">
+      <div class="card-header">
+        <div class="card-type-dot"></div>
+        <span class="card-name">${card.name}</span>
+      </div>
+      <div class="card-image-area">
+        ${card.image ? `<img src="${card.image}" alt="${card.name}">` : '<div class="card-image-placeholder">일러스트<br>추가 예정</div>'}
+      </div>
+      <div class="card-footer">
+        <div class="card-cost">MP ${card.cost}</div>
+        <div class="card-desc">${card.description}</div>
+      </div>
+    </div>`;
+
+    if (!forZoom) {
+        // 길게 누르기 → 줌 (손패 정리 및 카드 사용 단계 모두)
+        addLongPress(el, () => showCardZoom(card, true));
+        // 짧은 클릭 처리 (길게 누르기와 충돌 방지)
+        let pressStart = 0;
+        el.addEventListener('mousedown', () => { pressStart = Date.now(); });
+        el.addEventListener('touchstart', () => { pressStart = Date.now(); }, { passive: true });
+        el.addEventListener('click', () => {
+            if (Date.now() - pressStart < 450) onHandCardClick(card);
+        });
+    }
+    return el;
+}
+
+function createEnemyCardEl(card, small = false, isField = false) {
+    const el = document.createElement('div');
+    const tierClass = tierToClass(card.tier);
+    el.className = `card card-enemy ${tierClass}${isField ? ' card-field' : ''}`;
+    if (isField) { el.style.width = '120px'; el.style.height = '170px'; }
+    el.innerHTML = `
+    <div class="tier-badge">${card.tier}</div>
+    <div class="card-inner">
+      <div class="card-header"><span class="card-name">${card.name}</span></div>
+      <div class="enemy-stats">
+        <span class="enemy-stat r-stat">R ${card.r}</span>
+        <span class="enemy-stat a-stat">A ${card.a}</span>
+      </div>
+      <div class="card-image-area" style="${isField ? 'flex:1' : 'height:44px'}">
+        ${card.image ? `<img src="${card.image}" alt="${card.name}">` : '<div class="card-image-placeholder">일러스트<br>추가 예정</div>'}
+      </div>
+      <div class="card-footer">
+        <div class="enemy-echo">Echo: ${card.echo}</div>
+      </div>
+    </div>`;
+    if (isField) addLongPress(el, () => showCardZoom(card, false));
+    return el;
+}
+
+function tierToClass(t) {
+    return t === '약' ? 'tier-weak' : t === '중' ? 'tier-mid' : 'tier-strong';
+}
+
+// ===== 손패 버림 선택 토글 =====
+function toggleDiscardSelect(card) {
+    const idx = G.discardSelected.findIndex(c => c.uid === card.uid);
+    if (idx >= 0) {
+        G.discardSelected.splice(idx, 1);
+    } else {
+        if (G.discardSelected.length >= 3) { showToast('최대 3장까지 버릴 수 있습니다'); return; }
+        G.discardSelected.push(card);
+    }
+    renderDiscardModal();
+}
+
+// ===== 액션 버튼 상태 =====
+function setActionBtnsState() {
+    const killBtn = q('#btn-kill');
+    const talkBtn = q('#btn-talk');
+    const skipBtn = q('#btn-skip');
+    const nextBtn = q('#btn-next-phase');
+    const playDone = q('#btn-card-done');
+    if (!killBtn) return;
+
+    const isSel = G.phase === 'select-action';
+    const isPlay = G.phase === 'card-play';
+
+    killBtn.disabled = !isSel || G.actionDone;
+    talkBtn.disabled = !isSel || G.actionDone;
+    skipBtn.disabled = !isSel || G.actionDone;
+    nextBtn.disabled = !isSel || !G.actionDone;
+    if (playDone) playDone.disabled = !isPlay;
+}
+
+// ===== 줌 모달 =====
+let zoomTarget = null;
+let zoomIsEnemy = false;
+
+function showCardZoom(card, isAction = true) {
+    if (G.gameOver) return;
+    zoomTarget = card;
+    zoomIsEnemy = !isAction;
+
+    const area = q('#zoom-card-area');
+    area.innerHTML = '';
+    const cardEl = isAction ? createActionCardEl(card, true) : createEnemyCardEl(card, false, false);
+    cardEl.style.width = '100%';
+    cardEl.style.height = '100%';
+    area.appendChild(cardEl);
+
+    const playBtn = q('#zoom-play-btn');
+    if (isAction) {
+        playBtn.style.display = '';
+        // 카드 사용 단계이고 MP 있고 반응 카드 아닐 때만 사용 가능
+        const canPlay = G.phase === 'card-play' && G.mp >= card.cost && !card.isReaction;
+        playBtn.disabled = !canPlay;
+        playBtn.textContent = canPlay ? `사용 (MP -${card.cost})` : '사용 불가';
+    } else {
+        playBtn.style.display = 'none';
+    }
+    q('#card-zoom-modal').classList.add('active');
+}
+
+// ===== 주사위 결과 =====
+function showDiceResult(type, dice, success, threshold = null) {
+    const logEl = q('#log-zone');
+    const row = document.createElement('div');
+    row.className = 'dice-container';
+    dice.forEach(d => {
+        const die = document.createElement('div');
+        die.className = 'die' + (type === 'kill' ? (d >= 5 ? ' success' : ' fail') : (success ? ' success' : ' fail'));
+        die.textContent = d;
+        row.appendChild(die);
+    });
+    if (threshold !== null) {
+        const total = dice.reduce((a, b) => a + b, 0);
+        const label = document.createElement('span');
+        label.style.cssText = `font-size:0.78rem;color:${success ? '#38b000' : '#e63946'}`;
+        label.textContent = ` = ${total} (목표 ${threshold})`;
+        row.appendChild(label);
+    }
+    logEl.appendChild(row);
+    logEl.scrollTop = logEl.scrollHeight;
+}
+
+// ===== 토큰 모달 =====
+let tokenModalCallback = null;
+let tokenCount = 0;
+
+function showTokenModal(cb) {
+    tokenModalCallback = cb;
+    tokenCount = 0;
+    q('#token-count-display').textContent = 0;
+    q('#token-max').textContent = G.talkTokens;
+    q('#token-modal').classList.add('active');
+}
+
+// ===== 빚쟁이 선택 모달 =====
+let choiceCard = null;
+let choiceDone = null;
+
+function showChoiceModal(card, onDone) {
+    choiceCard = card;
+    choiceDone = onDone;
+    q('#choice-modal-desc').textContent = `[${card.name}] Echo: ${card.echo}`;
+    q('#choice-modal').classList.add('active');
+}
+
+// ===== 손패 정리 모달 =====
+function showDiscardModal() {
+    G.discardSelected = [];
+    const modal = q('#discard-modal');
+    if (!modal) return;
+    modal.classList.add('active');
+    renderDiscardModal();
+}
+
+function renderDiscardModal() {
+    const row = q('#discard-hand-row');
+    if (!row) return;
+    row.innerHTML = '';
+    G.hand.forEach(card => {
+        const el = document.createElement('div');
+        const typeClass = card.subtype;
+        el.className = `card card-action ${typeClass}`;
+        const isSelected = !!G.discardSelected.find(c => c.uid === card.uid);
+        if (isSelected) el.classList.add('discard-selected');
+        el.innerHTML = `
+      <div class="card-inner">
+        <div class="card-header">
+          <div class="card-type-dot"></div>
+          <span class="card-name">${card.name}${isSelected ? ' ✕' : ''}</span>
+        </div>
+        <div class="card-image-area">
+          ${card.image ? `<img src="${card.image}" alt="${card.name}">` : '<div class="card-image-placeholder">일러스트<br>추가 예정</div>'}
+        </div>
+        <div class="card-footer">
+          <div class="card-cost">MP ${card.cost}</div>
+          <div class="card-desc">${card.description}</div>
+        </div>
+      </div>`;
+        // 버림 선택 토글 (클릭 이벤트만)
+        el.addEventListener('click', () => toggleDiscardSelect(card));
+        row.appendChild(el);
+    });
+    const btn = q('#discard-confirm-btn');
+    if (btn) btn.textContent = `버리기 (${G.discardSelected.length}장 선택) → 계속`;
+}
+
+function closeDiscardModal() {
+    const m = q('#discard-modal');
+    if (m) m.classList.remove('active');
+}
+
+function confirmDiscard() {
+    // 선택된 카드 → 버림더미 애니메이션
+    const toDiscard = [...G.discardSelected];
+    toDiscard.forEach(c => {
+        G.hand = G.hand.filter(h => h.uid !== c.uid);
+        G.actionDiscard.push(c);
+    });
+    if (toDiscard.length > 0) {
+        log(`♻ ${toDiscard.length}장 버림`, 'muted');
+        // 버림 애니메이션
+        animateCardFly('discard-hand-row', 'deck-discard', () => { }, 'action');
+    }
+    G.discardSelected = [];
+    // 4장까지 보충
+    const prevLen = G.hand.length;
+    refillHand();
+    const added = G.hand.length - prevLen;
+    if (added > 0) {
+        // 덱 → 손패 애니메이션
+        for (let i = 0; i < Math.min(added, 3); i++) {
+            setTimeout(() => {
+                animateCardFly('deck-action', 'hand-zone', () => { }, 'action');
+            }, i * 80);
+        }
+    }
+    setTimeout(() => phaseCardPlay(), 200);
+}
+
+// ===== 결과 화면 =====
+function showResultScreen(won) {
+    const screen = q('#result-screen');
+    screen.className = `screen active ${won ? 'result-win' : 'result-lose'}`;
+    q('#result-title').textContent = won ? '생존!' : '패배';
+    q('#result-subtitle').textContent = won ? '20턴을 버텨냈습니다.' : 'HP가 0이 되었습니다.';
+    q('#result-stats-text').innerHTML = `최종 턴: ${G.turn}턴 | HP: ${G.hp} | Karma: ${G.karma}`;
+    showScreen('result-screen');
+}
+
+// ===== 화면 전환 =====
+function showScreen(id) {
+    document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+    document.getElementById(id).classList.add('active');
+}
+
+// ===== 로그 =====
+function log(text, type = '') {
+    const lz = q('#log-zone');
+    if (!lz) return;
+    const p = document.createElement('p');
+    p.textContent = text;
+    if (type === 'event') p.classList.add('log-event');
+    if (type === 'danger') p.classList.add('log-danger');
+    if (type === 'success') p.classList.add('log-success');
+    if (type === 'talk') p.classList.add('log-talk');
+    lz.appendChild(p);
+    lz.scrollTop = lz.scrollHeight;
+}
+
+// ===== 토스트 =====
+let toastTimer = null;
+function showToast(msg) {
+    const t = q('#toast');
+    if (!t) return;
+    t.textContent = msg;
+    t.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => t.classList.remove('show'), 2200);
+}
+
+// ===== 길게 누르기 =====
+function addLongPress(el, cb, duration = 500) {
+    let timer = null;
+    const start = () => { timer = setTimeout(() => { cb(); timer = null; }, duration); };
+    const cancel = () => { if (timer) { clearTimeout(timer); timer = null; } };
+    el.addEventListener('mousedown', start);
+    el.addEventListener('touchstart', start, { passive: true });
+    el.addEventListener('mouseup', cancel);
+    el.addEventListener('mouseleave', cancel);
+    el.addEventListener('touchend', cancel);
+    el.addEventListener('touchcancel', cancel);
+}
+
+// ===== 파티클 =====
+function createParticles() {
+    const c = q('.bg-particles');
+    if (!c) return;
+    for (let i = 0; i < 40; i++) {
+        const p = document.createElement('div');
+        p.className = 'particle';
+        p.style.left = Math.random() * 100 + 'vw';
+        p.style.bottom = '-10px';
+        const dur = 8 + Math.random() * 12;
+        p.style.animationDuration = dur + 's';
+        p.style.animationDelay = (Math.random() * 12) + 's';
+        const sz = (1 + Math.random() * 2) + 'px';
+        p.style.width = sz; p.style.height = sz;
+        c.appendChild(p);
+    }
+}
+
+// ===== DOM 준비 =====
+document.addEventListener('DOMContentLoaded', () => {
+    createParticles();
+
+    // 타이틀
+    q('#btn-start').onclick = () => { showScreen('game-screen'); initGame(); };
+    q('#btn-help-title').onclick = () => { q('#help-back-to').dataset.from = 'title-screen'; showScreen('help-screen'); };
+
+    // 인게임 메뉴
+    q('#menu-btn').onclick = () => q('#ingame-menu').classList.add('active');
+    q('#ingame-main-btn').onclick = () => { q('#ingame-menu').classList.remove('active'); showScreen('title-screen'); };
+    q('#ingame-new-btn').onclick = () => { q('#ingame-menu').classList.remove('active'); initGame(); };
+    q('#ingame-help-btn').onclick = () => { q('#ingame-menu').classList.remove('active'); q('#help-back-to').dataset.from = 'game-screen'; showScreen('help-screen'); };
+    q('#ingame-back-btn').onclick = () => q('#ingame-menu').classList.remove('active');
+
+    // 도움말
+    q('#help-close-btn').onclick = () => showScreen(q('#help-back-to').dataset.from || 'title-screen');
+
+    // 손패 정리 버튼
+    q('#discard-confirm-btn').onclick = confirmDiscard;
+
+    // 카드 사용 완료
+    q('#btn-card-done').onclick = () => phaseSelectAction();
+
+    // 행동 버튼
+    q('#btn-kill').onclick = tryKill;
+    q('#btn-talk').onclick = tryTalk;
+    q('#btn-skip').onclick = trySkip;
+    q('#btn-next-phase').onclick = endActionPhase;
+
+    // 줌 모달 - "사용" 버튼이 실제 카드 사용을 실행
+    q('#zoom-cancel-btn').onclick = () => q('#card-zoom-modal').classList.remove('active');
+    q('#zoom-play-btn').onclick = () => {
+        if (zoomTarget && !zoomIsEnemy) playCard(zoomTarget);
+    };
+    q('#card-zoom-modal').addEventListener('click', e => {
+        if (e.target === q('#card-zoom-modal')) q('#card-zoom-modal').classList.remove('active');
+    });
+
+    // 토큰 모달
+    q('#token-minus').onclick = () => { tokenCount = Math.max(0, tokenCount - 1); q('#token-count-display').textContent = tokenCount; };
+    q('#token-plus').onclick = () => { tokenCount = Math.min(G.talkTokens, tokenCount + 1); q('#token-count-display').textContent = tokenCount; };
+    q('#token-confirm-btn').onclick = () => {
+        q('#token-modal').classList.remove('active');
+        if (tokenModalCallback) { tokenModalCallback(tokenCount); tokenModalCallback = null; }
+    };
+
+    // 빚쟁이 선택 모달
+    q('#choice-hp-btn').onclick = () => {
+        q('#choice-modal').classList.remove('active');
+        if (choiceCard) { choiceCard.echoEffect(G, true); renderStats(); }
+        if (choiceDone) choiceDone();
+    };
+    q('#choice-mp-btn').onclick = () => {
+        q('#choice-modal').classList.remove('active');
+        if (choiceCard) {
+            if (G.mp > 0) choiceCard.echoEffect(G, false);
+            else { showToast('MP 0 → HP -2 적용'); choiceCard.echoEffect(G, true); }
+            renderStats();
+        }
+        if (choiceDone) choiceDone();
+    };
+
+    // 결과 화면
+    q('#result-new-btn').onclick = () => { showScreen('game-screen'); initGame(); };
+    q('#result-main-btn').onclick = () => showScreen('title-screen');
+
+    // 침묵 반응 카드 버튼
+    q('#btn-silence')?.addEventListener('click', () => {
+        const sc = G.hand.find(c => c.id === 'action_effect_5');
+        if (!sc) { showToast('손패에 침묵 카드가 없습니다'); return; }
+        if (G.mp < sc.cost) { showToast('MP가 부족합니다'); return; }
+        G.mp -= sc.cost;
+        G.hand = G.hand.filter(c => c.uid !== sc.uid);
+        G.actionDiscard.push(sc);
+        sc.effect(G);
+        log('🔇 침묵 사용: 메아리 -2장', 'event');
+        renderStats();
+    });
+});
