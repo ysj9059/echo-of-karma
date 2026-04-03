@@ -35,7 +35,7 @@
 
   <!-- ========== 게임 화면 ========== -->
   <div id="game-screen" class="screen new-layout"
-    style="background-image: url('board-background.jpg'); background-size: cover; background-position: center;">
+    style="background-image: url('board-background-2.png'); background-size: cover; background-position: center;">
 
     <div id="game-main">
 
@@ -286,6 +286,19 @@
       <div class="choice-buttons">
         <button id="choice-hp-btn" class="btn btn-danger">HP −2</button>
         <button id="choice-mp-btn" class="btn btn-talk">MP −1</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========== 반응 카드 모달 (침묵 등) ========== -->
+  <div id="reaction-modal" class="modal-overlay">
+    <div class="reaction-modal-box">
+      <div class="reaction-modal-title">⚡ Reaction: 반응 카드 사용</div>
+      <div id="reaction-card-slot" style="display:flex; justify-content:center; margin: 10px 0;"></div>
+      <div class="reaction-modal-desc" id="reaction-modal-desc">이 카드를 사용하여 메아리 카드를 줄이시겠습니까?</div>
+      <div class="reaction-buttons">
+        <button id="reaction-use-btn" class="btn btn-primary">사용</button>
+        <button id="reaction-skip-btn" class="btn btn-secondary">넘기기</button>
       </div>
     </div>
   </div>

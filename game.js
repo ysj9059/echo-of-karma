@@ -217,15 +217,51 @@ function resolveEcho(cards, onDone) {
 
 function triggerEchoPhase(onDone) {
     const count = Math.max(0, Math.min(5, G.karma + (G.echoCountModifier || 0)));
-    G.echoCountModifier = 0;
-    if (count === 0) { log('▶ 메아리 없음 (공개 0장)', 'muted'); if (onDone) onDone(); return; }
-    const toReveal = G.echoDeck.splice(0, count);
-    resolveEcho(toReveal, onDone);
+    const reactionCard = G.hand.find(c => c.isReaction);
+
+    if (reactionCard && count > 0) {
+        showReactionModal(reactionCard, () => {
+            playReactionCard(reactionCard, () => {
+                triggerEchoPhase(onDone); // 재귀 호출: 수정된 modifier로 재계산
+            });
+        }, () => {
+            // 반응 카드 미사용 시 기존 루틴 진행
+            const finalCount = Math.max(0, Math.min(5, G.karma + (G.echoCountModifier || 0)));
+            G.echoCountModifier = 0;
+            if (finalCount === 0) { log('▶ 메아리 없음 (공개 0장)', 'muted'); if (onDone) onDone(); return; }
+            const toReveal = G.echoDeck.splice(0, finalCount);
+            resolveEcho(toReveal, onDone);
+        });
+    } else {
+        G.echoCountModifier = 0;
+        if (count === 0) { log('▶ 메아리 없음 (공개 0장)', 'muted'); if (onDone) onDone(); return; }
+        const toReveal = G.echoDeck.splice(0, count);
+        resolveEcho(toReveal, onDone);
+    }
 }
 
 // 살생 성공 시 메아리 1장
 function triggerKillEcho(onDone) {
     if (G.echoDeck.length === 0) { if (onDone) onDone(); return; }
+    
+    const reactionCard = G.hand.find(c => c.isReaction);
+    if (reactionCard) {
+        showReactionModal(reactionCard, () => {
+            playReactionCard(reactionCard, () => {
+                // 살생 메아리는 보통 1장임. 침묵(-2) 사용 시 0장이 됨.
+                log('⚡ 침묵 효과로 살생 성공 메아리가 봉인되었습니다.', 'muted');
+                G.echoCountModifier = 0; 
+                if (onDone) onDone();
+            });
+        }, () => {
+            actuallyTriggerKillEcho(onDone);
+        });
+    } else {
+        actuallyTriggerKillEcho(onDone);
+    }
+}
+
+function actuallyTriggerKillEcho(onDone) {
     const card = G.echoDeck.shift();
     log(`⚡ 살생 성공 메아리 1장 공개: [${card.name}]`, 'event');
     if (card.echoConcept === 'choice') {
@@ -391,6 +427,55 @@ function playCard(card) {
     if (card.id === 'action_talk_4') { doPlayCardAnim(card, doConfess); return; }
 
     doPlayCardAnim(card, null);
+}
+
+// ===== 반응 카드 처리 =====
+function showReactionModal(card, onUse, onSkip) {
+    const modal = q('#reaction-modal');
+    const slot = q('#reaction-card-slot');
+    slot.innerHTML = '';
+    // 카드 형태를 그대로 보여줌
+    slot.appendChild(createActionCardEl(card, true));
+    
+    const desc = q('#reaction-modal .reaction-modal-desc');
+    if (desc) desc.innerHTML = `${card.name} 카드를 사용하여 메아리 효과를 줄이시겠습니까?<br><small>(비용 MP ${card.cost})</small>`;
+    
+    modal.classList.add('active');
+    
+    q('#reaction-use-btn').onclick = () => {
+        modal.classList.remove('active');
+        onUse();
+    };
+    q('#reaction-skip-btn').onclick = () => {
+        modal.classList.remove('active');
+        onSkip();
+    };
+}
+
+function playReactionCard(card, onDone) {
+    if (G.mp < card.cost) {
+        showToast('MP가 부족하여 반응 카드를 사용할 수 없습니다.');
+        return;
+    }
+    
+    G.mp -= card.cost;
+    G.hand = G.hand.filter(c => c.uid !== card.uid);
+    if (!G.playedActionCards) G.playedActionCards = [];
+    G.playedActionCards.push(card);
+    
+    log(`⚡ 반응 사용: ${card.name}`, 'success');
+    
+    // 카드가 날아가는 애니메이션
+    const slotIdx = Math.min(G.playedActionCards.length, 3);
+    const targetSlot = `used-card-${slotIdx}`;
+    
+    animateCardFly('hand-zone', targetSlot, () => {
+        card.effect(G); // e.g. echoCountModifier -= 2
+        renderPlayedCards();
+        renderStats();
+        if (G.hp <= 0) { endGame(false); return; }
+        if (onDone) onDone();
+    }, 'action', card);
 }
 
 // 카드 사용 처리 (손패 → 버림더미/사용한카드 애니메이션)

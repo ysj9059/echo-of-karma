@@ -143,8 +143,8 @@ const ACTION_CARDS_EFFECT = [
         sideEffect: null,
         image: null,
         effect: (state) => {
-            if (state.currentEnemy) {
-                state.currentEnemy.r = Math.max(1, state.currentEnemy.r - 2);
+            if (state.fieldCard) {
+                state.fieldCard.r = Math.max(1, state.fieldCard.r - 2);
             }
         }
     },
