@@ -13,7 +13,7 @@ const ACTION_CARDS_KILL = [
         cost: 0,
         description: '이번 턴 살생 시도 비용 −1 (최소 0). 살생 판정 1회 수행.',
         sideEffect: '살생 성공 시 50% 확률(1d6 결과가 3 이하)로 추가 Karma +1',
-        image: null, // 나중에 이미지 경로 추가
+        image: '01-과잉진압.png', // 이미지 경로 추가
         effect: (state) => {
             // 이번 턴 살생 비용 -1 (최소 0)
             state.killCostModifier = (state.killCostModifier || 0) - 1;

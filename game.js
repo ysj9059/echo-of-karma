@@ -963,27 +963,36 @@ function renderPlayedCards() {
 // ===== 카드 요소 생성 =====
 function createActionCardEl(card, forZoom = false) {
     const el = document.createElement('div');
-    el.className = `card card-action ${card.subtype}`;
+    const isIllustrationOnly = card.name === '과잉 진압';
+    el.className = `card card-action ${card.subtype} ${isIllustrationOnly ? 'illustration-only' : ''}`;
     el.dataset.uid = card.uid;
-    el.innerHTML = `
-    <div class="card-inner">
-      <div class="card-header">
-        <div class="card-type-dot"></div>
-        <span class="card-name">${card.name}</span>
-      </div>
-      <div class="card-image-area">
-        ${card.image ? `<img src="${card.image}" alt="${card.name}">` : '<div class="card-image-placeholder">일러스트<br>추가 예정</div>'}
-      </div>
-      <div class="card-footer">
-        <div class="card-cost">MP ${card.cost}</div>
-        <div class="card-desc">${card.description}</div>
-      </div>
-    </div>`;
+    
+    if (isIllustrationOnly) {
+        el.innerHTML = `
+        <div class="card-inner">
+          <div class="card-image-area">
+            ${card.image ? `<img src="${card.image}" alt="${card.name}">` : '<div class="card-image-placeholder">일러스트<br>추가 예정</div>'}
+          </div>
+        </div>`;
+    } else {
+        el.innerHTML = `
+        <div class="card-inner">
+          <div class="card-header">
+            <div class="card-type-dot"></div>
+            <span class="card-name">${card.name}</span>
+          </div>
+          <div class="card-image-area">
+            ${card.image ? `<img src="${card.image}" alt="${card.name}">` : '<div class="card-image-placeholder">일러스트<br>추가 예정</div>'}
+          </div>
+          <div class="card-footer">
+            <div class="card-cost">MP ${card.cost}</div>
+            <div class="card-desc">${card.description}</div>
+          </div>
+        </div>`;
+    }
 
     if (!forZoom) {
-        // 길게 누르기 → 줌 (손패 정리 및 카드 사용 단계 모두)
         addLongPress(el, () => showCardZoom(card, true));
-        // 짧은 클릭 처리 (길게 누르기와 충돌 방지)
         let pressStart = 0;
         el.addEventListener('mousedown', () => { pressStart = Date.now(); });
         el.addEventListener('touchstart', () => { pressStart = Date.now(); }, { passive: true });
@@ -1073,10 +1082,52 @@ function showCardZoom(card, isAction = true) {
 
     const area = q('#zoom-card-area');
     area.innerHTML = '';
+    
+    // 확대된 카드 추가
     const cardEl = isAction ? createActionCardEl(card, true) : createEnemyCardEl(card, false, false);
     cardEl.style.width = '100%';
     cardEl.style.height = '100%';
     area.appendChild(cardEl);
+
+    // 설명 버튼 및 오버레이 초기화/추가
+    const isSpec = isAction && card.name === '과잉 진압';
+    let descBtn = q('#zoom-desc-btn');
+    let infoOverlay = q('#zoom-info-overlay');
+    
+    if (isSpec) {
+        if (!descBtn) {
+            descBtn = document.createElement('button');
+            descBtn.id = 'zoom-desc-btn';
+            descBtn.textContent = '설명';
+        }
+        descBtn.style.display = 'block';
+        area.appendChild(descBtn);
+        
+        if (!infoOverlay) {
+            infoOverlay = document.createElement('div');
+            infoOverlay.id = 'zoom-info-overlay';
+        }
+        infoOverlay.classList.remove('active');
+        area.appendChild(infoOverlay);
+
+        infoOverlay.innerHTML = `
+            <div class="info-title">${card.name}</div>
+            <div class="info-desc">
+                [비용: MP ${card.cost}]<br><br>
+                ${card.description}<br><br>
+                <small style="color:var(--color-gold)">${card.sideEffect || ''}</small>
+            </div>
+            <button class="info-close-btn" onclick="document.getElementById('zoom-info-overlay').classList.remove('active')">닫기</button>
+        `;
+        
+        descBtn.onclick = (e) => {
+            e.stopPropagation();
+            infoOverlay.classList.add('active');
+        };
+    } else {
+        if (descBtn) descBtn.style.display = 'none';
+        if (infoOverlay) infoOverlay.classList.remove('active');
+    }
 
     const playBtn = q('#zoom-play-btn');
     if (isAction) {
