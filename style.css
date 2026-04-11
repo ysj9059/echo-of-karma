@@ -594,20 +594,20 @@ body {
 
 /* 행동 카드 크기 */
 .card-action {
-  width: 90px;
-  height: 130px;
+  width: clamp(60px, 20vw, 90px);
+  height: clamp(86px, 29vw, 130px);
 }
 
 /* 상대 카드 크기 */
 .card-enemy {
-  width: 110px;
-  height: 155px;
+  width: clamp(70px, 24vw, 110px);
+  height: clamp(100px, 34vw, 155px);
 }
 
 /* 필드 카드 (크게) */
 .card-field {
-  width: 120px;
-  height: 170px;
+  width: clamp(80px, 28vw, 120px);
+  height: clamp(113px, 39vw, 170px);
 }
 
 .card:hover {
@@ -1542,8 +1542,7 @@ body {
   gap: 8px !important;
   position: relative;
   z-index: 10;
-  overflow-y: auto;
-  overflow-x: hidden;
+  overflow: hidden; /* 영역 내 컨텐츠가 딱 맞게 차도록 오버플로우 방지 */
 }
 
 .new-layout::before {
@@ -1562,7 +1561,7 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 10px;
+  gap: clamp(4px, 2vw, 10px); /* 창 크기에 따라 여백 자동 축소 */
   width: 100%;
 }
 
@@ -1596,11 +1595,11 @@ body {
 /* 덱 공간 공통 */
 .row-opp-decks {
   margin-top: 10px;
-  flex-wrap: wrap;
+  flex-wrap: nowrap; /* 줄바꿈 방지 */
 }
 .deck-place {
-  width: 72px;
-  height: 104px;
+  width: clamp(50px, 18vw, 72px);
+  height: clamp(72px, 26vw, 104px);
   background: transparent;
   color: var(--color-text);
   display: flex;
@@ -1648,8 +1647,8 @@ body {
   min-height: 150px;
 }
 .center-slot {
-  width: 120px;
-  height: 170px;
+  width: clamp(80px, 28vw, 120px);
+  height: clamp(113px, 39vw, 170px);
   background: transparent;
   display: flex;
   align-items: center;
@@ -1716,7 +1715,7 @@ body {
 /* 액션 덱 */
 .row-action-decks {
   margin-top: 4px;
-  flex-wrap: wrap;
+  flex-wrap: nowrap; /* 줄바꿈 방지 */
 }
 .used-card {
   font-size: 0.75rem;
