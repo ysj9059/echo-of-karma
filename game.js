@@ -963,33 +963,15 @@ function renderPlayedCards() {
 // ===== 카드 요소 생성 =====
 function createActionCardEl(card, forZoom = false) {
     const el = document.createElement('div');
-    const isIllustrationOnly = card.name === '과잉 진압';
-    el.className = `card card-action ${card.subtype} ${isIllustrationOnly ? 'illustration-only' : ''}`;
+    el.className = `card card-action ${card.subtype} illustration-only`;
     el.dataset.uid = card.uid;
     
-    if (isIllustrationOnly) {
-        el.innerHTML = `
-        <div class="card-inner">
-          <div class="card-image-area">
-            ${card.image ? `<img src="${card.image}" alt="${card.name}">` : '<div class="card-image-placeholder">일러스트<br>추가 예정</div>'}
-          </div>
-        </div>`;
-    } else {
-        el.innerHTML = `
-        <div class="card-inner">
-          <div class="card-header">
-            <div class="card-type-dot"></div>
-            <span class="card-name">${card.name}</span>
-          </div>
-          <div class="card-image-area">
-            ${card.image ? `<img src="${card.image}" alt="${card.name}">` : '<div class="card-image-placeholder">일러스트<br>추가 예정</div>'}
-          </div>
-          <div class="card-footer">
-            <div class="card-cost">MP ${card.cost}</div>
-            <div class="card-desc">${card.description}</div>
-          </div>
-        </div>`;
-    }
+    el.innerHTML = `
+    <div class="card-inner">
+      <div class="card-image-area">
+        ${card.image ? `<img src="${card.image}" alt="${card.name}">` : '<div class="card-image-placeholder">일러스트<br>추가 예정</div>'}
+      </div>
+    </div>`;
 
     if (!forZoom) {
         addLongPress(el, () => showCardZoom(card, true));
@@ -1003,27 +985,27 @@ function createActionCardEl(card, forZoom = false) {
     return el;
 }
 
-function createEnemyCardEl(card, small = false, isField = false) {
+function createEnemyCardEl(card, small = false, isField = false, forZoom = false) {
     const el = document.createElement('div');
     const tierClass = tierToClass(card.tier);
-    el.className = `card card-enemy ${tierClass}${isField ? ' card-field' : ''}`;
+    el.className = `card card-enemy ${tierClass}${isField ? ' card-field' : ''} illustration-only`;
     if (isField) { el.style.width = '120px'; el.style.height = '170px'; }
     el.innerHTML = `
-    <div class="tier-badge">${card.tier}</div>
     <div class="card-inner">
-      <div class="card-header"><span class="card-name">${card.name}</span></div>
-      <div class="enemy-stats">
-        <span class="enemy-stat r-stat">R ${card.r}</span>
-        <span class="enemy-stat a-stat">A ${card.a}</span>
-      </div>
-      <div class="card-image-area" style="${isField ? 'flex:1' : 'height:44px'}">
+      <div class="card-image-area">
         ${card.image ? `<img src="${card.image}" alt="${card.name}">` : '<div class="card-image-placeholder">일러스트<br>추가 예정</div>'}
       </div>
-      <div class="card-footer">
-        <div class="enemy-echo">Echo: ${card.echo}</div>
-      </div>
     </div>`;
-    if (isField) addLongPress(el, () => showCardZoom(card, false));
+    
+    if (!forZoom) {
+        addLongPress(el, () => showCardZoom(card, false));
+        let pressStart = 0;
+        el.addEventListener('mousedown', () => { pressStart = Date.now(); });
+        el.addEventListener('touchstart', () => { pressStart = Date.now(); }, { passive: true });
+        el.addEventListener('click', () => {
+            if (Date.now() - pressStart < 450) showCardZoom(card, false);
+        });
+    }
     return el;
 }
 
@@ -1084,32 +1066,31 @@ function showCardZoom(card, isAction = true) {
     area.innerHTML = '';
     
     // 확대된 카드 추가
-    const cardEl = isAction ? createActionCardEl(card, true) : createEnemyCardEl(card, false, false);
+    const cardEl = isAction ? createActionCardEl(card, true) : createEnemyCardEl(card, false, false, true);
     cardEl.style.width = '100%';
     cardEl.style.height = '100%';
     area.appendChild(cardEl);
 
     // 설명 버튼 및 오버레이 초기화/추가
-    const isSpec = isAction && card.name === '과잉 진압';
     let descBtn = q('#zoom-desc-btn');
     let infoOverlay = q('#zoom-info-overlay');
     
-    if (isSpec) {
-        if (!descBtn) {
-            descBtn = document.createElement('button');
-            descBtn.id = 'zoom-desc-btn';
-            descBtn.textContent = '설명';
-        }
-        descBtn.style.display = 'block';
-        area.appendChild(descBtn);
-        
-        if (!infoOverlay) {
-            infoOverlay = document.createElement('div');
-            infoOverlay.id = 'zoom-info-overlay';
-        }
-        infoOverlay.classList.remove('active');
-        area.appendChild(infoOverlay);
+    if (!descBtn) {
+        descBtn = document.createElement('button');
+        descBtn.id = 'zoom-desc-btn';
+        descBtn.textContent = '설명';
+    }
+    descBtn.style.display = 'block';
+    area.appendChild(descBtn);
+    
+    if (!infoOverlay) {
+        infoOverlay = document.createElement('div');
+        infoOverlay.id = 'zoom-info-overlay';
+    }
+    infoOverlay.classList.remove('active');
+    area.appendChild(infoOverlay);
 
+    if (isAction) {
         infoOverlay.innerHTML = `
             <div class="info-title">${card.name}</div>
             <div class="info-desc">
@@ -1119,15 +1100,21 @@ function showCardZoom(card, isAction = true) {
             </div>
             <button class="info-close-btn" onclick="document.getElementById('zoom-info-overlay').classList.remove('active')">닫기</button>
         `;
-        
-        descBtn.onclick = (e) => {
-            e.stopPropagation();
-            infoOverlay.classList.add('active');
-        };
     } else {
-        if (descBtn) descBtn.style.display = 'none';
-        if (infoOverlay) infoOverlay.classList.remove('active');
+        infoOverlay.innerHTML = `
+            <div class="info-title">${card.name}</div>
+            <div class="info-desc">
+                [티어: ${card.tier} | R: ${card.r} | A: ${card.a}]<br><br>
+                <span style="color:var(--color-gold)">Echo: ${card.echo}</span>
+            </div>
+            <button class="info-close-btn" onclick="document.getElementById('zoom-info-overlay').classList.remove('active')">닫기</button>
+        `;
     }
+    
+    descBtn.onclick = (e) => {
+        e.stopPropagation();
+        infoOverlay.classList.add('active');
+    };
 
     const playBtn = q('#zoom-play-btn');
     if (isAction) {
@@ -1234,27 +1221,9 @@ function renderDiscardModal() {
     if (!row) return;
     row.innerHTML = '';
     G.hand.forEach(card => {
-        const el = document.createElement('div');
-        const typeClass = card.subtype;
-        el.className = `card card-action ${typeClass}`;
+        const el = createActionCardEl(card);
         const isSelected = !!G.discardSelected.find(c => c.uid === card.uid);
         if (isSelected) el.classList.add('discard-selected');
-        el.innerHTML = `
-      <div class="card-inner">
-        <div class="card-header">
-          <div class="card-type-dot"></div>
-          <span class="card-name">${card.name}${isSelected ? ' ✕' : ''}</span>
-        </div>
-        <div class="card-image-area">
-          ${card.image ? `<img src="${card.image}" alt="${card.name}">` : '<div class="card-image-placeholder">일러스트<br>추가 예정</div>'}
-        </div>
-        <div class="card-footer">
-          <div class="card-cost">MP ${card.cost}</div>
-          <div class="card-desc">${card.description}</div>
-        </div>
-      </div>`;
-        // 버림 선택 토글 (클릭 이벤트만)
-        el.addEventListener('click', () => toggleDiscardSelect(card));
         row.appendChild(el);
     });
     const btn = q('#discard-confirm-btn');

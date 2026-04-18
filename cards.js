@@ -12,8 +12,8 @@ const ACTION_CARDS_KILL = [
         count: 6,
         cost: 0,
         description: '이번 턴 살생 시도 비용 −1 (최소 0). 살생 판정 1회 수행.',
-        sideEffect: '살생 성공 시 50% 확률(1d6 결과가 3 이하)로 추가 Karma +1',
-        image: '01-과잉진압.png', // 이미지 경로 추가
+        sideEffect: '살생 성공 시 50% 확률로 추가 Karma +1',
+        image: 'CARDS/01-과잉진압.png', // 이미지 경로 추가
         effect: (state) => {
             // 이번 턴 살생 비용 -1 (최소 0)
             state.killCostModifier = (state.killCostModifier || 0) - 1;
@@ -28,7 +28,7 @@ const ACTION_CARDS_KILL = [
         cost: 2,
         description: '주사위 없이 즉시 현재 상대를 메아리 덱으로 이동.',
         sideEffect: 'Karma +1, 메아리 1장 공개',
-        image: null,
+        image: 'CARDS/02-확인사살.png',
         effect: (state) => {
             // 선택 행동을 대체: 즉시 살생 성공 처리
             state.specialKillNoRoll = true;
@@ -47,7 +47,7 @@ const ACTION_CARDS_TALK = [
         cost: 1,
         description: '이번 턴 대화 주사위 +1d6 (일회성)',
         sideEffect: '같은 턴에 경청/중재 동시 사용 불가',
-        image: null,
+        image: 'CARDS/03-경청.png',
         effect: (state) => {
             state.talkDiceBonus = (state.talkDiceBonus || 0) + 1;
             state.usedTalkBoostCard = true;
@@ -62,7 +62,7 @@ const ACTION_CARDS_TALK = [
         cost: 3,
         description: '즉시 Karma −1 (최저 0) 후, 이번 턴 대화 시도 1회를 추가 비용 없이 수행',
         sideEffect: '고비용/고효율(업보를 낮추며 난이도까지 간접 완화)',
-        image: null,
+        image: 'CARDS/04-사과.png',
         effect: (state) => {
             if (state.karma > 0) state.karma -= 1;
             state.freeTalkThisTurn = true;
@@ -77,7 +77,7 @@ const ACTION_CARDS_TALK = [
         cost: 2,
         description: '이번 턴 대화 주사위 +2d6 (일회성)',
         sideEffect: '같은 턴에 경청/중재 동시 사용 불가',
-        image: null,
+        image: 'CARDS/05-중재.png',
         effect: (state) => {
             state.talkDiceBonus = (state.talkDiceBonus || 0) + 2;
             state.usedTalkBoostCard = true;
@@ -92,7 +92,7 @@ const ACTION_CARDS_TALK = [
         cost: 3,
         description: '즉시 Karma −1 (최저 0), HP-4 피해를 받은 뒤 상대 자동 제거',
         sideEffect: '대화/살생 선택 없이 해결(강제 피해 포함)',
-        image: null,
+        image: 'CARDS/06-고백.png',
         effect: (state) => {
             if (state.karma > 0) state.karma -= 1;
             state.hp -= 4;
@@ -112,7 +112,7 @@ const ACTION_CARDS_EFFECT = [
         cost: 0,
         description: 'MP+2 (최대 8). Karma가 5이상이면 MP+1만 회복.',
         sideEffect: null,
-        image: null,
+        image: 'CARDS/07-명상.png',
         effect: (state) => {
             const gain = state.karma >= 5 ? 1 : 2;
             state.mp = Math.min(8, state.mp + gain);
@@ -127,7 +127,7 @@ const ACTION_CARDS_EFFECT = [
         cost: 1,
         description: 'HP+3 (최대 20)',
         sideEffect: null,
-        image: null,
+        image: 'CARDS/08-진통제.png',
         effect: (state) => {
             state.hp = Math.min(20, state.hp + 3);
         }
@@ -141,7 +141,7 @@ const ACTION_CARDS_EFFECT = [
         cost: 1,
         description: '현재 상대의 R -2 (최소 R 1)',
         sideEffect: null,
-        image: null,
+        image: 'CARDS/09-분석.png',
         effect: (state) => {
             if (state.fieldCard) {
                 state.fieldCard.r = Math.max(1, state.fieldCard.r - 2);
@@ -157,7 +157,7 @@ const ACTION_CARDS_EFFECT = [
         cost: 2,
         description: 'Karma -1 (최소 0), 메아리 덱 카드 1장 제거',
         sideEffect: null,
-        image: null,
+        image: 'CARDS/10-정화의식.png',
         effect: (state, gameActions) => {
             if (state.karma > 0) state.karma -= 1;
             // 메아리 덱 맨 위 카드 1장 제거 (게임 밖으로)
@@ -175,7 +175,7 @@ const ACTION_CARDS_EFFECT = [
         cost: 0,
         description: '공개해야 할 메아리 카드 수 -2 (최소 0)',
         sideEffect: '메아리 단계 발생 시 사용 가능한 반응 카드',
-        image: null,
+        image: 'CARDS/11-침묵.png',
         isReaction: true, // 반응 카드
         effect: (state) => {
             state.echoCountModifier = (state.echoCountModifier || 0) - 2;
@@ -196,7 +196,7 @@ const ENEMY_CARDS = [
         echo: 'MP −1',
         echoConcept: 'mp',
         echoValue: -1,
-        image: null,
+        image: 'CARDS/O1-겁먹은행인.png',
         echoEffect: (state) => {
             state.mp = Math.max(0, state.mp - 1);
         }
@@ -212,7 +212,7 @@ const ENEMY_CARDS = [
         echo: '다음 턴 시작 손패 −1 (최소 2장)',
         echoConcept: 'hand',
         echoValue: -1,
-        image: null,
+        image: 'CARDS/O2-소문꾼.png',
         echoEffect: (state) => {
             state.nextTurnHandPenalty = (state.nextTurnHandPenalty || 0) + 1;
         }
@@ -228,7 +228,7 @@ const ENEMY_CARDS = [
         echo: 'HP −2',
         echoConcept: 'hp',
         echoValue: -2,
-        image: null,
+        image: 'CARDS/O3-분노한목격자.png',
         echoEffect: (state) => {
             state.hp -= 2;
         }
@@ -243,7 +243,7 @@ const ENEMY_CARDS = [
         a: 2,
         echo: 'HP −2 또는 MP −1 중 택1 (단 MP가 0이면 MP −1 선택 불가)',
         echoConcept: 'choice',
-        image: null,
+        image: 'CARDS/O4-빚쟁이.png',
         echoEffect: (state, choiceHp = true) => {
             if (choiceHp) {
                 state.hp -= 2;
@@ -263,7 +263,7 @@ const ENEMY_CARDS = [
         echo: '다음 턴 살생 비용 +1 (최대 비용 MP3)',
         echoConcept: 'killCost',
         echoValue: 1,
-        image: null,
+        image: 'CARDS/O5-폭력배.png',
         echoEffect: (state) => {
             state.nextTurnKillCostBonus = (state.nextTurnKillCostBonus || 0) + 1;
         }
@@ -279,7 +279,7 @@ const ENEMY_CARDS = [
         echo: 'Karma +1',
         echoConcept: 'karma',
         echoValue: 1,
-        image: null,
+        image: 'CARDS/O6-선동가.png',
         echoEffect: (state) => {
             state.karma += 1;
         }
@@ -295,7 +295,7 @@ const ENEMY_CARDS = [
         echo: '다음 턴 대화 비용 +2',
         echoConcept: 'talkCost',
         echoValue: 2,
-        image: null,
+        image: 'CARDS/O7-상처입은가족.png',
         echoEffect: (state) => {
             state.nextTurnTalkCostBonus = (state.nextTurnTalkCostBonus || 0) + 2;
         }
@@ -311,7 +311,7 @@ const ENEMY_CARDS = [
         echo: 'HP −3',
         echoConcept: 'hp',
         echoValue: -3,
-        image: null,
+        image: 'CARDS/O8-증오의도살자.png',
         echoEffect: (state) => {
             state.hp -= 3;
         }
@@ -327,7 +327,7 @@ const ENEMY_CARDS = [
         echo: 'Karma +2',
         echoConcept: 'karma',
         echoValue: 2,
-        image: null,
+        image: 'CARDS/O9-눈먼광신도.png',
         echoEffect: (state) => {
             state.karma += 2;
         }
