@@ -332,18 +332,7 @@
     </div>
   </div>
 
-  <script src="cards.js"></script>
-  <script src="game.js"></script>
-  <script>
-    // 토큰 모달 열릴 때 최대값 업데이트
-    const origShowTokenModal = showTokenModal;
-    window.showTokenModal = function (cb) {
-      document.getElementById('token-max').textContent = G.talkTokens;
-      tokenCount = 0;
-      document.getElementById('token-count-display').textContent = 0;
-      origShowTokenModal(cb);
-    };
-  </script>
+  <script type="module" src="game.js"></script>
 </body>
 
 </html>

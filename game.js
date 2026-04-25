@@ -2,8 +2,20 @@
 // 업보의 메아리 - 게임 로직 v2
 // =============================
 
+import { buildActionDeck, buildEnemyDeck, shuffle } from './src/cards/index.js';
+
+
 // ===== 게임 상태 =====
 let G = {};
+window.G = G; // 전역 참조 허용 (index.html 등에서 사용)
+
+// 유틸리티 함수 노출 (index.html 등에서 사용)
+const q = s => document.querySelector(s);
+const qa = s => document.querySelectorAll(s);
+window.q = q;
+window.qa = qa;
+
+
 
 // ===== 상태 초기화 =====
 function initGame() {
@@ -802,8 +814,6 @@ function animateCardFly(fromId, toId, onDone, type = 'action', card = null) {
 // ============================================================
 // ===== UI 렌더링 =====
 // ============================================================
-const q = sel => document.querySelector(sel);
-const qa = sel => document.querySelectorAll(sel);
 
 function renderAll() {
     renderStats();
@@ -1481,3 +1491,16 @@ document.addEventListener('DOMContentLoaded', () => {
         renderStats();
     });
 });
+
+// 필요한 함수들 전역 노출
+window.initGame = initGame;
+window.showTokenModal = showTokenModal;
+window.confirmDiscard = confirmDiscard;
+window.phaseHandCleanup = phaseHandCleanup;
+window.tryKill = tryKill;
+window.tryTalk = tryTalk;
+window.trySkip = trySkip;
+window.endActionPhase = endActionPhase;
+window.showScreen = showScreen;
+window.playCard = playCard;
+
