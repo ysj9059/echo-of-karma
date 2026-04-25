@@ -17,6 +17,7 @@ const ACTION_CARDS_KILL = [
         effect: (state) => {
             // 이번 턴 살생 비용 -1 (최소 0)
             state.killCostModifier = (state.killCostModifier || 0) - 1;
+            state.overkillActiveCount = (state.overkillActiveCount || 0) + 1;
         }
     },
     {
@@ -94,9 +95,9 @@ const ACTION_CARDS_TALK = [
         sideEffect: '대화/살생 선택 없이 해결(강제 피해 포함)',
         image: 'CARDS/06-고백.png',
         effect: (state) => {
-            if (state.karma > 0) state.karma -= 1;
-            state.hp -= 4;
-            state.specialRemoveEnemy = true; // 상대 자동 제거 (메아리덱으로 가지 않음, 게임에서 완전 제거)
+            // karma -1, HP-4는 game.js의 doConfess()에서 직접 처리
+            // (doPlayCardAnim → card.effect → doConfess 순서로 실행되므로 여기서 중복 적용하면 안 됨)
+            state.specialRemoveEnemy = true;
         }
     },
 ];
@@ -281,7 +282,7 @@ const ENEMY_CARDS = [
         echoValue: 1,
         image: 'CARDS/O6-선동가.png',
         echoEffect: (state) => {
-            state.karma += 1;
+            state.karma = Math.min(99, state.karma + 1);
         }
     },
     {
@@ -329,7 +330,7 @@ const ENEMY_CARDS = [
         echoValue: 2,
         image: 'CARDS/O9-눈먼광신도.png',
         echoEffect: (state) => {
-            state.karma += 2;
+            state.karma = Math.min(99, state.karma + 2);
         }
     },
 ];

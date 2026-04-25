@@ -9,8 +9,8 @@ export default {
     sideEffect: '대화/살생 선택 없이 해결(강제 피해 포함)',
     image: 'CARDS/06-고백.png',
     effect: (state) => {
-        if (state.karma > 0) state.karma -= 1;
-        state.hp -= 4;
+        // karma -1, HP-4는 game.js의 doConfess()에서 직접 처리
+        // (doPlayCardAnim → card.effect → doConfess 순서로 실행되므로 여기서 중복 적용하면 안 됨)
         state.specialRemoveEnemy = true;
     }
 };

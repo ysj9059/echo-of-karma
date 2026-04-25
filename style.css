@@ -1973,4 +1973,76 @@ body {
     color: white;
     border-radius: 4px;
     cursor: pointer;
-}
+}
+
+/* === 성찰 모달 스타일 === */
+.reflection-modal-box {
+    background: var(--bg-card);
+    width: 90%;
+    max-width: 400px;
+    padding: 25px;
+    border-radius: var(--radius-card);
+    border: 1px solid var(--color-gold);
+    box-shadow: 0 0 30px rgba(0, 0, 0, 0.8), 0 0 15px rgba(255, 215, 0, 0.2);
+    position: relative;
+    display: flex;
+    flex-direction: column;
+}
+
+.reflection-modal-title {
+    font-family: var(--font-serif);
+    font-size: 1.25rem;
+    color: var(--color-gold);
+    text-align: center;
+    margin-bottom: 8px;
+    letter-spacing: 0.05em;
+}
+
+.reflection-options {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.reflection-option {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: var(--radius-sm);
+    padding: 15px;
+    text-align: left;
+    transition: all var(--transition);
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.reflection-option:hover {
+    background: rgba(255, 215, 0, 0.08);
+    border-color: var(--color-gold);
+    transform: translateX(5px);
+}
+
+.reflection-option .option-name {
+    font-weight: 700;
+    font-size: 1rem;
+    color: var(--color-text);
+}
+
+.reflection-option .option-desc {
+    font-size: 0.78rem;
+    color: var(--color-text-muted);
+}
+
+.reflection-option .option-benefit {
+    margin-top: 4px;
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: var(--color-gold);
+    align-self: flex-end;
+}
+
+#reflect-normal-btn .option-benefit { color: var(--color-talk); }
+#reflect-karma-btn .option-benefit { color: var(--color-kill); }
+#reflect-token-btn .option-benefit { color: var(--color-gold); }
+

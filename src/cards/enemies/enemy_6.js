@@ -11,6 +11,6 @@ export default {
     echoValue: 1,
     image: 'CARDS/O6-선동가.png',
     echoEffect: (state) => {
-        state.karma += 1;
+        state.karma = Math.min(99, state.karma + 1);
     }
 };

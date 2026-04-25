@@ -11,6 +11,6 @@ export default {
     echoValue: 2,
     image: 'CARDS/O9-눈먼광신도.png',
     echoEffect: (state) => {
-        state.karma += 2;
+        state.karma = Math.min(99, state.karma + 2);
     }
 };

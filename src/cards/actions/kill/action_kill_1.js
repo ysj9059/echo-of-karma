@@ -10,5 +10,6 @@ export default {
     image: 'CARDS/01-과잉진압.png',
     effect: (state) => {
         state.killCostModifier = (state.killCostModifier || 0) - 1;
+        state.overkillActiveCount = (state.overkillActiveCount || 0) + 1;
     }
 };

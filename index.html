@@ -155,7 +155,7 @@
         <li><span class="highlight">HP</span>: 시작 20, 최대 20</li>
         <li><span class="highlight">MP</span>: 시작 8, 최대 8 (0 미만 불가)</li>
         <li><span class="highlight">Karma(업보)</span>: 시작 0, 최저 0</li>
-        <li><span class="highlight">Talk Token(대화 토큰)</span>: 시작 0, 최대 4. 6/11/16턴에 +1개씩 획득</li>
+        <li><span class="highlight">Talk Token(대화 토큰)</span>: 시작 0, 최대 4. 6/11/16턴 보너스 또는 대화 성공, 휴식 시 획득</li>
       </ul>
 
       <h3>⚙️ 턴 진행</h3>
@@ -163,7 +163,7 @@
         <li>손패 정리: 최대 3장 버림 → 4장까지 보충</li>
         <li>카드 사용: MP를 소비해 행동 카드 사용</li>
         <li>선택 행동: <b>살생</b> 또는 <b>대화</b> 또는 <b>시도 안 함</b> 중 택1</li>
-        <li>휴식: 손패 보충, MP+1 회복, Karma 패널티 적용 후 턴+1</li>
+        <li>휴식(성찰): <b>MP+1 회복</b> 또는 <b>Karma-1(HP-3 소모)</b> 또는 <b>대화 토큰+1(HP-3 소모)</b> 중 택1</li>
       </ol>
 
       <h3>⚔ 살생 (기본 비용 MP 1)</h3>
@@ -299,6 +299,33 @@
       <div class="reaction-buttons">
         <button id="reaction-use-btn" class="btn btn-primary">사용</button>
         <button id="reaction-skip-btn" class="btn btn-secondary">넘기기</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========== 성찰 모달 (휴식 단계 선택지) ========== -->
+  <div id="reflection-modal" class="modal-overlay">
+    <div class="reflection-modal-box">
+      <div class="reflection-modal-title">🧘 성찰: 휴식의 방법 선택</div>
+      <p style="font-size:0.82rem;color:var(--color-text-muted);text-align:center;margin-bottom:15px;">
+        이번 휴식을 어떻게 보내시겠습니까? (택 1)
+      </p>
+      <div class="reflection-options">
+        <button id="reflect-normal-btn" class="reflection-option">
+          <div class="option-name">일반적인 휴식</div>
+          <div class="option-desc">체력을 안배하며 마력을 회복합니다.</div>
+          <div class="option-benefit">MP +1</div>
+        </button>
+        <button id="reflect-karma-btn" class="reflection-option">
+          <div class="option-name">깊은 명상</div>
+          <div class="option-desc">육체적 고통을 감내하며 업보를 씻어냅니다.</div>
+          <div class="option-benefit"><span style="color:var(--color-kill)">HP −3</span> & Karma −1</div>
+        </button>
+        <button id="reflect-token-btn" class="reflection-option">
+          <div class="option-name">간절한 기도</div>
+          <div class="option-desc">자신을 낮추고 대화를 위한 의지를 다집니다.</div>
+          <div class="option-benefit"><span style="color:var(--color-kill)">HP −3</span> & 대화 토큰 +1</div>
+        </button>
       </div>
     </div>
   </div>

@@ -48,6 +48,7 @@ function initGame() {
         talkCostModifier: 0,
         talkDiceBonus: 0,
         echoCountModifier: 0,
+        overkillActiveCount: 0,
         usedTalkBoostCard: false,
         freeTalkThisTurn: false,
         specialKillNoRoll: false,
@@ -317,6 +318,7 @@ function startTurn() {
     G.usedTalkBoostCard = false;
     G.talkDiceBonus = 0;
     G.echoCountModifier = 0;
+    G.overkillActiveCount = 0;
 
     log(`\n━━ ${G.turn}턴 시작 ━━`, 'event');
 
@@ -369,7 +371,7 @@ function phaseSelectAction() {
     setActionBtnsState();
 }
 
-// 휴식 단계 → 손패 보충, MP+1, Karma패널티, 턴+1 → 새 상대 공개 → 다음 턴 시작
+// 휴식 단계 → 성찰(선택) → 손패 보충, Karma패널티, 턴+1 → 새 상대 공개 → 다음 턴 시작
 function phaseRest() {
     G.phase = 'rest';
 
@@ -382,8 +384,32 @@ function phaseRest() {
     }
 
     refillHand();
-    G.mp = Math.min(8, G.mp + 1);
+    renderAll();
+    
+    // 성찰 모달 표시 (플레이어 선택 유도)
+    q('#reflection-modal').classList.add('active');
+}
 
+function doReflect(type) {
+    q('#reflection-modal').classList.remove('active');
+    
+    if (type === 'normal') {
+        G.mp = Math.min(8, G.mp + 1);
+        log('🧘 일반적인 휴식: MP +1 회복', 'success');
+    } else if (type === 'karma') {
+        G.hp -= 3;
+        G.karma = Math.max(0, G.karma - 1);
+        log('🧘 깊은 명상: 고행의 대가(HP-3)를 치르고 Karma -1 정화', 'danger');
+    } else if (type === 'token') {
+        G.hp -= 3;
+        G.talkTokens = Math.min(4, G.talkTokens + 1);
+        log('🧘 간절한 기도: 고행의 대가(HP-3)를 치르고 대화 토큰 +1 획득', 'danger');
+    }
+
+    renderStats();
+    if (G.hp <= 0) { endGame(false); return; }
+
+    // 이후 공통 정산 로직
     let hpPenalty = 0;
     if (G.karma >= 9) hpPenalty = 2;
     else if (G.karma >= 4) hpPenalty = 1;
@@ -435,6 +461,7 @@ function playCard(card) {
 
     q('#card-zoom-modal').classList.remove('active');
 
+    if (card.id === 'action_kill_1') { doPlayCardAnim(card, tryKill); return; }
     if (card.id === 'action_kill_2') { doPlayCardAnim(card, doConfirmKill); return; }
     if (card.id === 'action_talk_4') { doPlayCardAnim(card, doConfess); return; }
 
@@ -578,6 +605,16 @@ function tryKill() {
     playDiceAnimation('kill', dice, success, null, () => {
         log(`⚔ 살생 시도 (비용 MP ${cost}): 주사위 [${dice.join(', ')}] → ${success ? '✅ 성공' : '❌ 실패'}`, success ? 'success' : 'danger');
         G.karma = Math.min(99, G.karma + 1);
+
+        // [사이드 이펙트] 과잉 진압: 살생 성공 시 50% 확률로 추가 Karma +1
+        if (success && G.overkillActiveCount > 0) {
+            for (let i = 0; i < G.overkillActiveCount; i++) {
+                if (Math.random() < 0.5) {
+                    G.karma = Math.min(99, G.karma + 1);
+                    log(`⚠️ [과잉 진압] 부작용: 추가 Karma +1`, 'danger');
+                }
+            }
+        }
 
         if (success) {
             const enemy = G.fieldCard;
@@ -1490,6 +1527,11 @@ document.addEventListener('DOMContentLoaded', () => {
         renderPlayedCards();
         renderStats();
     });
+
+    // 성찰 모달 버튼
+    q('#reflect-normal-btn').onclick = () => doReflect('normal');
+    q('#reflect-karma-btn').onclick = () => doReflect('karma');
+    q('#reflect-token-btn').onclick = () => doReflect('token');
 });
 
 // 필요한 함수들 전역 노출
