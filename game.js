@@ -70,7 +70,7 @@ function initGame() {
     log(`━━ 1턴 시작 ━━`, 'event');
     if (G.fieldCard) log(`▶ 현재 상대: ${G.fieldCard.name}`, 'event');
     renderAll();
-    
+
     // 초기 애니메이션
     doInitialAnimations();
 }
@@ -256,14 +256,14 @@ function triggerEchoPhase(onDone) {
 // 살생 성공 시 메아리 1장
 function triggerKillEcho(onDone) {
     if (G.echoDeck.length === 0) { if (onDone) onDone(); return; }
-    
+
     const reactionCard = G.hand.find(c => c.isReaction);
     if (reactionCard) {
         showReactionModal(reactionCard, () => {
             playReactionCard(reactionCard, () => {
                 // 살생 메아리는 보통 1장임. 침묵(-2) 사용 시 0장이 됨.
                 log('⚡ 침묵 효과로 살생 성공 메아리가 봉인되었습니다.', 'muted');
-                G.echoCountModifier = 0; 
+                G.echoCountModifier = 0;
                 if (onDone) onDone();
             });
         }, () => {
@@ -385,17 +385,18 @@ function phaseRest() {
 
     refillHand();
     renderAll();
-    
+
     // 성찰 모달 표시 (플레이어 선택 유도)
     q('#reflection-modal').classList.add('active');
 }
 
 function doReflect(type) {
     q('#reflection-modal').classList.remove('active');
-    
+
     if (type === 'normal') {
+        G.hp = Math.min(20, G.hp + 1);
         G.mp = Math.min(8, G.mp + 1);
-        log('🧘 일반적인 휴식: MP +1 회복', 'success');
+        log('🧘 휴식: HP +1, MP +1 회복', 'success');
     } else if (type === 'karma') {
         G.hp -= 3;
         G.karma = Math.max(0, G.karma - 1);
@@ -475,12 +476,12 @@ function showReactionModal(card, onUse, onSkip) {
     slot.innerHTML = '';
     // 카드 형태를 그대로 보여줌
     slot.appendChild(createActionCardEl(card, true));
-    
+
     const desc = q('#reaction-modal .reaction-modal-desc');
     if (desc) desc.innerHTML = `${card.name} 카드를 사용하여 메아리 효과를 줄이시겠습니까?<br><small>(비용 MP ${card.cost})</small>`;
-    
+
     modal.classList.add('active');
-    
+
     q('#reaction-use-btn').onclick = () => {
         modal.classList.remove('active');
         onUse();
@@ -496,18 +497,18 @@ function playReactionCard(card, onDone) {
         showToast('MP가 부족하여 반응 카드를 사용할 수 없습니다.');
         return;
     }
-    
+
     G.mp -= card.cost;
     G.hand = G.hand.filter(c => c.uid !== card.uid);
     if (!G.playedActionCards) G.playedActionCards = [];
     G.playedActionCards.push(card);
-    
+
     log(`⚡ 반응 사용: ${card.name}`, 'success');
-    
+
     // 카드가 날아가는 애니메이션
     const slotIdx = Math.min(G.playedActionCards.length, 3);
     const targetSlot = `used-card-${slotIdx}`;
-    
+
     animateCardFly('hand-zone', targetSlot, () => {
         card.effect(G); // e.g. echoCountModifier -= 2
         renderPlayedCards();
@@ -558,9 +559,9 @@ function doConfirmKill() {
 
 function doConfess() {
     if (!G.fieldCard) { showToast('현재 상대가 없습니다'); return; }
-    
+
     const snap = { hp: G.hp, mp: G.mp, karma: G.karma, talkTokens: G.talkTokens };
-    
+
     G.karma = Math.max(0, G.karma - 1);
     G.hp -= 4;
     log(`💔 고백: HP-4, Karma-1, ${G.fieldCard.name} 제거`, 'danger');
@@ -570,7 +571,7 @@ function doConfess() {
     renderStats();
     renderField();
     if (G.hp <= 0) { endGame(false); return; }
-    
+
     animateCardFly('field-card-wrapper', 'deck-enemy-dead', () => {
         G.deadEnemyDeck.push(enemyToDie);
         renderDecks();
@@ -692,7 +693,7 @@ function tryTalk() {
                 } else {
                     log(`(토큰 사용 성공: 추가 토큰 획득 없음)`, 'muted');
                 }
-                renderStats(); renderField(); 
+                renderStats(); renderField();
                 animateCardFly('field-card-wrapper', 'deck-enemy-dead', () => {
                     G.deadEnemyDeck.push(enemyToDie);
                     renderDecks();
@@ -738,7 +739,7 @@ function trySkip() {
         phaseSelectAction();
         return;
     }
-    
+
     const snap = { hp: G.hp, mp: G.mp, karma: G.karma, talkTokens: G.talkTokens };
 
     G.hp -= G.fieldCard.a;
@@ -872,7 +873,7 @@ function renderStats() {
 
     const hpBar = q('#hp-bar');
     if (hpBar) hpBar.style.width = Math.max(0, (G.hp / 20) * 100) + '%';
-    
+
     const mpBar = q('#mp-bar');
     if (mpBar) mpBar.style.width = Math.max(0, (G.mp / 8) * 100) + '%';
 }
@@ -882,7 +883,7 @@ function renderKarmaBar() {
     if (!tracker) return;
     tracker.innerHTML = '';
     const maxSteps = 10;
-    
+
     for (let i = 0; i <= maxSteps; i++) {
         if (i === maxSteps && G.karma > maxSteps) {
             const ovf = document.createElement('div');
@@ -891,12 +892,12 @@ function renderKarmaBar() {
             tracker.appendChild(ovf);
             break;
         }
-        
+
         const step = document.createElement('div');
         step.className = 'karma-step';
         if (G.karma >= i) step.classList.add('active');
         if (G.karma === i) step.classList.add('current');
-        
+
         // 4, 7, 9 강조
         if (i === 4 || i === 7 || i === 9) {
             step.classList.add('highlight');
@@ -908,7 +909,7 @@ function renderKarmaBar() {
                 showActionResult(`Karma ${i} 요주의 구간`, desc, null, null);
             };
         }
-        
+
         tracker.appendChild(step);
     }
 }
@@ -946,7 +947,7 @@ function renderDecks() {
             el.style.backgroundPosition = 'center';
             let layers = Math.min(8, Math.ceil(cnt / 2));
             let shadow = '0 0 4px rgba(0,0,0,0.8)';
-            for(let i=1; i<=layers; i++) {
+            for (let i = 1; i <= layers; i++) {
                 shadow += `, -${i}px ${i}px 0 #1a1a2e, -${i}px ${i}px 0 rgba(255,255,255,0.3)`;
             }
             el.style.boxShadow = cnt > 0 ? shadow : 'none';
@@ -956,7 +957,7 @@ function renderDecks() {
     sd('#deck-discard', G.actionDiscard.length, 'card_back_1.png');
     sd('#deck-enemy', G.enemyDeck.length, 'card_back_2.png');
     sd('#deck-enemy-dead', G.deadEnemyDeck ? G.deadEnemyDeck.length : 0, 'card_back_2.png');
-    
+
     // 처음에 G.revealedEchoes가 세팅된 경우, 덱 카운트에서 해당 수만큼 뺌
     const revealedLimit = (typeof G.revealedEchoes !== 'undefined') ? G.revealedEchoes : 2;
     const actualRevealed = Math.min(G.echoDeck ? G.echoDeck.length : 0, revealedLimit);
@@ -991,14 +992,14 @@ function renderEchoReveals() {
 function renderPlayedCards() {
     [1, 2, 3].forEach(i => {
         const slot = q(`#used-card-${i}`);
-        if(slot) slot.innerHTML = '';
+        if (slot) slot.innerHTML = '';
     });
-    if(!G.playedActionCards) return;
-    
+    if (!G.playedActionCards) return;
+
     G.playedActionCards.forEach((c, idx) => {
         const slotIdx = Math.min(idx + 1, 3);
         const slot = q(`#used-card-${slotIdx}`);
-        if(slot) {
+        if (slot) {
             const el = createActionCardEl(c, true);
             el.style.width = '100%';
             el.style.height = '100%';
@@ -1012,7 +1013,7 @@ function createActionCardEl(card, forZoom = false) {
     const el = document.createElement('div');
     el.className = `card card-action ${card.subtype} illustration-only`;
     el.dataset.uid = card.uid;
-    
+
     el.innerHTML = `
     <div class="card-inner">
       <div class="card-image-area">
@@ -1043,7 +1044,7 @@ function createEnemyCardEl(card, small = false, isField = false, forZoom = false
         ${card.image ? `<img src="${card.image}" alt="${card.name}">` : '<div class="card-image-placeholder">일러스트<br>추가 예정</div>'}
       </div>
     </div>`;
-    
+
     if (!forZoom) {
         addLongPress(el, () => showCardZoom(card, false));
         let pressStart = 0;
@@ -1093,7 +1094,7 @@ function setActionBtnsState() {
         nextBtn.style.display = (isSel && G.actionDone) ? 'inline-block' : 'none';
         nextBtn.disabled = !isSel || !G.actionDone;
     }
-    
+
     if (cleanupBtn) {
         cleanupBtn.style.display = isWaitCleanup ? 'inline-block' : 'none';
         cleanupBtn.disabled = !isWaitCleanup;
@@ -1111,7 +1112,7 @@ function showCardZoom(card, isAction = true) {
 
     const area = q('#zoom-card-area');
     area.innerHTML = '';
-    
+
     // 확대된 카드 추가
     const cardEl = isAction ? createActionCardEl(card, true) : createEnemyCardEl(card, false, false, true);
     cardEl.style.width = '100%';
@@ -1121,7 +1122,7 @@ function showCardZoom(card, isAction = true) {
     // 설명 버튼 및 오버레이 초기화/추가
     let descBtn = q('#zoom-desc-btn');
     let infoOverlay = q('#zoom-info-overlay');
-    
+
     if (!descBtn) {
         descBtn = document.createElement('button');
         descBtn.id = 'zoom-desc-btn';
@@ -1129,7 +1130,7 @@ function showCardZoom(card, isAction = true) {
     }
     descBtn.style.display = 'block';
     area.appendChild(descBtn);
-    
+
     if (!infoOverlay) {
         infoOverlay = document.createElement('div');
         infoOverlay.id = 'zoom-info-overlay';
@@ -1157,7 +1158,7 @@ function showCardZoom(card, isAction = true) {
             <button class="info-close-btn" onclick="document.getElementById('zoom-info-overlay').classList.remove('active')">닫기</button>
         `;
     }
-    
+
     descBtn.onclick = (e) => {
         e.stopPropagation();
         infoOverlay.classList.add('active');
@@ -1183,7 +1184,7 @@ function playDiceAnimation(type, dice, success, threshold, onDone) {
     logEl.innerHTML = '';
     const row = document.createElement('div');
     row.className = 'dice-container';
-    
+
     // 초기 굴러가는 상태 엘리먼트 생성
     const dieEls = dice.map(() => {
         const d = document.createElement('div');
@@ -1192,24 +1193,24 @@ function playDiceAnimation(type, dice, success, threshold, onDone) {
         row.appendChild(d);
         return d;
     });
-    
+
     logEl.appendChild(row);
-    
+
     playSound('sfx-dice');
-    
+
     let rolls = 0;
     const interval = setInterval(() => {
         dieEls.forEach(d => { d.textContent = rollD6(); });
         rolls++;
         if (rolls >= 10) { // 10 * 60ms = 600ms 동안 굴리기
             clearInterval(interval);
-            
+
             // 최종 결과 반영
             dieEls.forEach((d, i) => {
                 d.textContent = dice[i];
                 d.className = 'die' + (type === 'kill' ? (dice[i] >= 5 ? ' success' : ' fail') : (success ? ' success' : ' fail'));
             });
-            
+
             // 목표(threshold) 정보 표시
             if (threshold !== null) {
                 const total = dice.reduce((a, b) => a + b, 0);
@@ -1219,7 +1220,7 @@ function playDiceAnimation(type, dice, success, threshold, onDone) {
                 row.appendChild(label);
                 setTimeout(() => label.style.opacity = '1', 50);
             }
-            
+
             // 사용자가 결과를 확인할 수 있도록 800ms 정도 대기 후 결과 모달 콜백 실행
             setTimeout(() => {
                 if (onDone) onDone();
@@ -1329,17 +1330,17 @@ function showActionResult(title, descHtml, isSuccess, onDone) {
         return;
     }
     q('#action-result-title').textContent = title;
-    
+
     if (isSuccess === null) {
         q('#action-result-title').style.color = 'var(--color-gold)';
     } else {
         q('#action-result-title').style.color = isSuccess ? 'var(--color-effect)' : 'var(--color-kill)';
     }
-    
+
     q('#action-result-desc').innerHTML = descHtml;
-    
+
     modal.classList.add('active');
-    
+
     const clickHandler = () => {
         modal.classList.remove('active');
         modal.removeEventListener('click', clickHandler);
@@ -1434,7 +1435,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // 손패 정리 모달 숨기기/열기 버튼
     q('#discard-hide-btn')?.addEventListener('click', () => {
         const m = q('#discard-modal');
-        if(m) {
+        if (m) {
             m.classList.toggle('minimized');
             q('#discard-hide-btn').textContent = m.classList.contains('minimized') ? '열기' : '숨기기';
         }
@@ -1518,10 +1519,10 @@ document.addEventListener('DOMContentLoaded', () => {
         if (G.mp < sc.cost) { showToast('MP가 부족합니다'); return; }
         G.mp -= sc.cost;
         G.hand = G.hand.filter(c => c.uid !== sc.uid);
-        
+
         if (!G.playedActionCards) G.playedActionCards = [];
         G.playedActionCards.push(sc);
-        
+
         sc.effect(G);
         log('🔇 침묵 사용: 메아리 -2장', 'event');
         renderPlayedCards();
