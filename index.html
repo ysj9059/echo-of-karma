@@ -90,7 +90,8 @@
         <div style="position:relative; display:flex; flex-direction:column; align-items:center;">
           <div style="position:absolute; bottom:100%; margin-bottom:8px; left:50%; transform:translateX(-50%); display:flex; gap:5px; white-space:nowrap; z-index:10;">
             <button id="btn-next-phase" class="btn btn-primary btn-sm" style="display:none; box-shadow: 0 4px 12px rgba(0,0,0,0.8);">휴식 →</button>
-            <button id="btn-hand-cleanup" class="btn btn-primary btn-sm" style="display:none; box-shadow: 0 4px 12px rgba(0,0,0,0.8);">손패 정리 시작 →</button>
+            <button id="btn-hand-cleanup" class="btn btn-primary btn-sm" style="display:none; box-shadow: 0 4px 12px rgba(0,0,0,0.8);">손패 정리</button>
+            <button id="btn-hand-cleanup-skip" class="btn btn-secondary btn-sm" style="display:none; box-shadow: 0 4px 12px rgba(0,0,0,0.8);">건너뛰기</button>
           </div>
           <button id="btn-token" class="action-btn token">Token <span id="stat-token">0</span></button>
         </div>
@@ -256,6 +257,7 @@
     <div class="card-zoom-content">
       <div class="card-zoom-inner" id="zoom-card-area"></div>
       <div class="card-zoom-actions">
+        <button id="zoom-desc-btn" class="btn btn-secondary btn-sm">설명</button>
         <button id="zoom-play-btn" class="btn btn-primary btn-sm">사용</button>
         <button id="zoom-cancel-btn" class="btn btn-secondary btn-sm">닫기</button>
       </div>

@@ -356,6 +356,21 @@ function phaseHandCleanup() {
     showDiscardModal();
 }
 
+// 손패 정리 건너뛰기 (버리지 않고 바로 카드 사용 단계로)
+function phaseHandCleanupSkip() {
+    G.phase = 'hand-cleanup';
+    // 손패 패널티 적용
+    if (G.nextTurnHandPenalty > 0) {
+        const penalty = Math.min(G.nextTurnHandPenalty, Math.max(0, G.hand.length - 2));
+        for (let i = 0; i < penalty; i++) G.actionDiscard.push(G.hand.shift());
+        if (penalty > 0) log(`⚡ 손패 패널티: -${penalty}장`, 'danger');
+        G.nextTurnHandPenalty = 0;
+    }
+    refillHand(); // 4장까지 보충
+    log('▶ 손패 정리 건너뀸', 'muted');
+    phaseCardPlay();
+}
+
 // 카드 사용 단계
 function phaseCardPlay() {
     G.phase = 'card-play';
@@ -1081,6 +1096,7 @@ function setActionBtnsState() {
     const tokenBtn = q('#btn-token');
     const nextBtn = q('#btn-next-phase');
     const cleanupBtn = q('#btn-hand-cleanup');
+    const cleanupSkipBtn = q('#btn-hand-cleanup-skip');
 
     const isSel = G.phase === 'select-action' || G.phase === 'card-play';
     const isWaitCleanup = G.phase === 'wait-hand-cleanup';
@@ -1098,6 +1114,10 @@ function setActionBtnsState() {
     if (cleanupBtn) {
         cleanupBtn.style.display = isWaitCleanup ? 'inline-block' : 'none';
         cleanupBtn.disabled = !isWaitCleanup;
+    }
+    if (cleanupSkipBtn) {
+        cleanupSkipBtn.style.display = isWaitCleanup ? 'inline-block' : 'none';
+        cleanupSkipBtn.disabled = !isWaitCleanup;
     }
 }
 
@@ -1119,18 +1139,8 @@ function showCardZoom(card, isAction = true) {
     cardEl.style.height = '100%';
     area.appendChild(cardEl);
 
-    // 설명 버튼 및 오버레이 초기화/추가
-    let descBtn = q('#zoom-desc-btn');
+    // 정보 오버레이 (카드 위에 표시되는 설명 오버레이)
     let infoOverlay = q('#zoom-info-overlay');
-
-    if (!descBtn) {
-        descBtn = document.createElement('button');
-        descBtn.id = 'zoom-desc-btn';
-        descBtn.textContent = '설명';
-    }
-    descBtn.style.display = 'block';
-    area.appendChild(descBtn);
-
     if (!infoOverlay) {
         infoOverlay = document.createElement('div');
         infoOverlay.id = 'zoom-info-overlay';
@@ -1159,10 +1169,15 @@ function showCardZoom(card, isAction = true) {
         `;
     }
 
-    descBtn.onclick = (e) => {
-        e.stopPropagation();
-        infoOverlay.classList.add('active');
-    };
+    // 설명 버튼: HTML에 정적으로 있는 버튼 참조 (card-zoom-actions 영역)
+    const descBtn = q('#zoom-desc-btn');
+    if (descBtn) {
+        descBtn.style.display = 'inline-block';
+        descBtn.onclick = (e) => {
+            e.stopPropagation();
+            infoOverlay.classList.add('active');
+        };
+    }
 
     const playBtn = q('#zoom-play-btn');
     if (isAction) {
@@ -1467,6 +1482,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // 손패 정리 버튼
     q('#discard-confirm-btn').onclick = confirmDiscard;
     q('#btn-hand-cleanup').onclick = phaseHandCleanup;
+    q('#btn-hand-cleanup-skip')?.addEventListener('click', phaseHandCleanupSkip);
 
     // 행동 버튼
     q('#btn-kill').onclick = tryKill;
